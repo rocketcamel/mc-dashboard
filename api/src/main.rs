@@ -1,7 +1,12 @@
+mod auth;
 mod error;
+mod routes;
+
+use std::sync::Arc;
 
 use axum::{Router, routing::get};
 use console::style;
+use openssh::{KnownHosts, Session};
 use thiserror_ext::AsReport;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
@@ -10,12 +15,26 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitEx
 
 use crate::error::Error;
 
+pub struct AppState {
+    pub ssh: Session,
+    pub reqwest_client: reqwest::Client,
+}
+
 async fn run() -> crate::error::Result<()> {
-    let app = Router::new().route(
-        "/",
-        get(|| async { concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")) })
-            .layer(TraceLayer::new_for_http()),
-    );
+    let state = Arc::new(AppState {
+        ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
+        reqwest_client: reqwest::Client::new(),
+    });
+
+    let app = Router::new()
+        .route(
+            "/",
+            get(|| async { concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")) }),
+        )
+        .route("/api/backups", get(routes::get_backups::get_backups))
+        .layer(TraceLayer::new_for_http())
+        .with_state(state);
+
     let listener = TcpListener::bind("0.0.0.0:8080")
         .await
         .map_err(|e| Error::bind_port(e, "0.0.0.0:8080"))?;

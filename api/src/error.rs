@@ -1,3 +1,4 @@
+use axum::{http::StatusCode, response::IntoResponse};
 use thiserror::Error;
 use thiserror_ext::{Box, Construct};
 
@@ -8,6 +9,27 @@ pub enum ErrorKind {
     BindPort(String, #[source] std::io::Error),
     #[error("io error")]
     Io(#[from] std::io::Error),
+    #[error("ssh error: {0}")]
+    Ssh(#[from] openssh::Error),
+    #[error("ssh command failed: {0}")]
+    SshCommand(String),
+
+    #[error("unauthorized")]
+    Unauthorized,
+    #[error("forbidden")]
+    Forbidden,
+    #[error("http error")]
+    Http(#[from] reqwest::Error),
+}
+
+impl IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        match self.inner() {
+            ErrorKind::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
+            ErrorKind::Forbidden => StatusCode::FORBIDDEN.into_response(),
+            _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
+    }
 }
 
 pub type Result<T> = core::result::Result<T, Error>;
