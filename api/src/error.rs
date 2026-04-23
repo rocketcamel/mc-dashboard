@@ -13,6 +13,12 @@ pub enum ErrorKind {
     Ssh(#[from] openssh::Error),
     #[error("ssh command failed: {0}")]
     SshCommand(String),
+    #[error("error loading env")]
+    Dotenv(#[from] dotenvy::Error),
+    #[error("json error")]
+    Json(#[from] serde_json::Error),
+    #[error("serde dynamo error")]
+    ConstructItem(#[from] serde_dynamo::Error),
 
     #[error("unauthorized")]
     Unauthorized,

@@ -1,4 +1,5 @@
 mod auth;
+mod env;
 mod error;
 mod routes;
 
@@ -13,17 +14,19 @@ use tower_http::trace::TraceLayer;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::error::Error;
+use crate::{env::Environment, error::Error};
 
 pub struct AppState {
     pub ssh: Session,
     pub reqwest_client: reqwest::Client,
+    pub environment: Environment,
 }
 
 async fn run() -> crate::error::Result<()> {
     let state = Arc::new(AppState {
         ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
         reqwest_client: reqwest::Client::new(),
+        environment: Environment::load()?,
     });
 
     let app = Router::new()

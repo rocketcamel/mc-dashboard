@@ -1,1 +1,4 @@
 api/target
+.terraform
+*.tfstate
+*.tfstate.backup
