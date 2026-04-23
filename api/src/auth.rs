@@ -5,7 +5,7 @@ use aws_sdk_dynamodb::{Client, types::AttributeValue};
 use serde::{Deserialize, Serialize};
 use tower_sessions::{
     SessionStore,
-    session::{Id, Record},
+    session::{self, Id, Record},
     session_store,
 };
 use uuid::Uuid;
@@ -56,10 +56,46 @@ impl SessionStore for DynamoDBStore {
     }
 
     async fn load(&self, session_id: &Id) -> session_store::Result<Option<Record>> {
-        Ok(None)
+        let result = self
+            .client
+            .get_item()
+            .table_name(&self.environment.table_name)
+            .key(
+                "pk",
+                AttributeValue::S(format!("SESSION#{}", session_id.to_string())),
+            )
+            .key("sk", AttributeValue::S("SESSION".to_string()))
+            .send()
+            .await
+            .map_err(|e| session_store::Error::Backend(e.to_string()))?;
+        let Some(item) = result.item else {
+            return Ok(None);
+        };
+        let session: SessionItem = serde_dynamo::from_item(item)
+            .map_err(|e| session_store::Error::Decode(e.to_string()))?;
+
+        Ok(Some(Record {
+            id: *session_id,
+            data: serde_json::from_str(&session.data)
+                .map_err(|e| session_store::Error::Decode(e.to_string()))?,
+            expiry_date: time::OffsetDateTime::from_unix_timestamp(session.expiry_date)
+                .map_err(|e| session_store::Error::Decode(e.to_string()))?,
+        }))
     }
 
     async fn delete(&self, session_id: &Id) -> session_store::Result<()> {
+        self.client
+            .delete_item()
+            .table_name(&self.environment.table_name)
+            .key(
+                "pk",
+                AttributeValue::S(format!("SESSION#{}", session_id.to_string())),
+            )
+            .key("sk", AttributeValue::S("SESSION".to_string()))
+            .send()
+            .await
+            .map_err(|e| session_store::Error::Backend(e.to_string()))?;
+
         Ok(())
     }
 }
