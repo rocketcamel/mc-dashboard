@@ -18,14 +18,28 @@ pub enum ErrorKind {
     #[error("json error")]
     Json(#[from] serde_json::Error),
     #[error("serde dynamo error")]
-    ConstructItem(#[from] serde_dynamo::Error),
+    SerdeDynamo(#[from] serde_dynamo::Error),
+    #[error("dynamodb error: {0}")]
+    DynamoDB(String),
+    #[error("error inserting user into session")]
+    SessionInsert,
 
     #[error("unauthorized")]
     Unauthorized,
     #[error("forbidden")]
     Forbidden,
+    #[error("resource not found")]
+    NotFound,
+    #[error("internal error")]
+    Internal,
     #[error("http error")]
     Http(#[from] reqwest::Error),
+}
+
+impl<E: std::fmt::Debug> From<aws_sdk_dynamodb::error::SdkError<E>> for Error {
+    fn from(value: aws_sdk_dynamodb::error::SdkError<E>) -> Self {
+        Error::dynamo_d_b(format!("{value:?}"))
+    }
 }
 
 impl IntoResponse for Error {

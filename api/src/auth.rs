@@ -2,34 +2,42 @@ use std::{env, sync::Arc};
 
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
+use axum::extract::FromRequestParts;
 use serde::{Deserialize, Serialize};
 use tower_sessions::{
-    SessionStore,
+    Session, SessionStore,
     session::{self, Id, Record},
     session_store,
 };
 use uuid::Uuid;
 
-use crate::env::Environment;
+use crate::{env::Environment, error::Error};
+
+#[derive(Serialize, Deserialize)]
+#[allow(unused)]
+pub struct UserItem {
+    pub id: Uuid,
+    pub name: String,
+    pub auth: String,
+}
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    id: Uuid,
-    name: String,
-    auth: String,
+    pub id: Uuid,
+    pub name: String,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct SessionItem {
-    pk: String,
-    sk: String,
-    data: String,
-    expiry_date: i64,
+    pub pk: String,
+    pub sk: String,
+    pub data: String,
+    pub expiry_date: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DynamoDBStore {
-    client: Arc<Client>,
+    client: Client,
     environment: Arc<Environment>,
 }
 
@@ -97,5 +105,38 @@ impl SessionStore for DynamoDBStore {
             .map_err(|e| session_store::Error::Backend(e.to_string()))?;
 
         Ok(())
+    }
+}
+
+impl DynamoDBStore {
+    pub fn new(client: Client, environment: Arc<Environment>) -> Self {
+        Self {
+            client,
+            environment,
+        }
+    }
+}
+
+pub struct AuthUser(pub User);
+
+impl<S> FromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = Error;
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &S,
+    ) -> Result<Self, Self::Rejection> {
+        let session = Session::from_request_parts(parts, state)
+            .await
+            .map_err(|_| Error::unauthorized())?;
+
+        let user: Option<User> = session
+            .get("user")
+            .await
+            .map_err(|_| Error::unauthorized())?;
+
+        user.map(AuthUser).ok_or(Error::unauthorized())
     }
 }

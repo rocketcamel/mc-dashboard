@@ -7,15 +7,20 @@ import { ThemeProvider } from './components/theme-provider.tsx'
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
-const router = createRouter({ routeTree })
+const queryClient = new QueryClient();
+
+const router = createRouter({
+  routeTree,
+  context: {
+    queryClient,
+  },
+})
 
 declare module '@tanstack/react-router' {
   interface Register {
     router: typeof router
   }
 }
-
-const queryClient = new QueryClient();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

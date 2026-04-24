@@ -1,10 +1,17 @@
 import Backup from '@/components/backup'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { authQueryOptions } from '@/lib/auth'
 
 export const Route = createFileRoute('/')({
   component: Index,
+  beforeLoad: async ({ context }) => {
+    const user = await context.queryClient.ensureQueryData(authQueryOptions)
+    if (!user) {
+      throw redirect({ to: '/login' })
+    }
+  }
 })
 
 function Index() {
