@@ -4,7 +4,7 @@ use axum::{Json, extract::State, response::IntoResponse};
 use chrono::NaiveDateTime;
 use serde::Serialize;
 
-use crate::{AppState, error::Result};
+use crate::{AppState, auth::AuthUser, error::Result};
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Backup {
@@ -13,7 +13,10 @@ pub struct Backup {
     pub date: String,
 }
 
-pub async fn get_backups(State(app_state): State<Arc<AppState>>) -> Result<impl IntoResponse> {
+pub async fn get_backups(
+    State(app_state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+) -> Result<impl IntoResponse> {
     let output = app_state
         .ssh
         .command("ls")

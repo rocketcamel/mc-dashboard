@@ -1,6 +1,6 @@
 use axum::{http::StatusCode, response::IntoResponse};
 use thiserror::Error;
-use thiserror_ext::{Box, Construct};
+use thiserror_ext::{AsReport, Box, Construct};
 
 #[derive(Error, Debug, Box, Construct)]
 #[thiserror_ext(newtype(name = Error))]
@@ -30,8 +30,10 @@ pub enum ErrorKind {
     Forbidden,
     #[error("resource not found")]
     NotFound,
-    #[error("internal error")]
-    Internal,
+    #[error("internal error: {0}")]
+    Internal(String),
+    #[error("resource already exists")]
+    Conflict,
     #[error("http error")]
     Http(#[from] reqwest::Error),
 }
@@ -44,9 +46,11 @@ impl<E: std::fmt::Debug> From<aws_sdk_dynamodb::error::SdkError<E>> for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
+        tracing::error!("{}", self.as_report());
         match self.inner() {
             ErrorKind::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
             ErrorKind::Forbidden => StatusCode::FORBIDDEN.into_response(),
+            ErrorKind::Conflict => StatusCode::CONFLICT.into_response(),
             _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }

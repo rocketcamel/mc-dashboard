@@ -51,6 +51,7 @@ async fn run() -> crate::error::Result<()> {
         )
         .route("/api/backups", get(routes::get_backups::get_backups))
         .route("/api/auth/login", post(routes::auth::login))
+        .route("/api/auth/register", post(routes::auth::register))
         .route("/api/auth/me", get(routes::auth::me))
         .layer(session_manager)
         .layer(TraceLayer::new_for_http())

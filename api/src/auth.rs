@@ -1,4 +1,4 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use aws_sdk_dynamodb::{Client, types::AttributeValue};
@@ -6,24 +6,20 @@ use axum::extract::FromRequestParts;
 use serde::{Deserialize, Serialize};
 use tower_sessions::{
     Session, SessionStore,
-    session::{self, Id, Record},
+    session::{Id, Record},
     session_store,
 };
-use uuid::Uuid;
 
 use crate::{env::Environment, error::Error};
 
 #[derive(Serialize, Deserialize)]
 #[allow(unused)]
 pub struct UserItem {
-    pub id: Uuid,
-    pub name: String,
     pub auth: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct User {
-    pub id: Uuid,
     pub name: String,
 }
 

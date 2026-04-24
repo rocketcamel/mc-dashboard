@@ -3,7 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 export const authQueryOptions = queryOptions({
   queryKey: ["auth"],
   queryFn: async () => {
-    const response = await fetch("/api/me");
+    const response = await fetch("/api/auth/me");
     if (!response.ok) return null;
     return await response.json();
   },
@@ -13,7 +13,10 @@ export const authQueryOptions = queryOptions({
 export async function login(username: string, password: string) {
   const response = await fetch("/api/auth/login", {
     method: "POST",
-    body: JSON.stringify({ username, password }),
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ username, auth: password }),
   });
 
   if (!response.ok) {
