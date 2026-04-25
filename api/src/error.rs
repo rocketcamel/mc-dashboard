@@ -46,12 +46,15 @@ impl<E: std::fmt::Debug> From<aws_sdk_dynamodb::error::SdkError<E>> for Error {
 
 impl IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        tracing::error!("{}", self.as_report());
         match self.inner() {
             ErrorKind::Unauthorized => StatusCode::UNAUTHORIZED.into_response(),
             ErrorKind::Forbidden => StatusCode::FORBIDDEN.into_response(),
             ErrorKind::Conflict => StatusCode::CONFLICT.into_response(),
-            _ => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+            ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
+            _ => {
+                tracing::error!("{}", self.as_report());
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         }
     }
 }

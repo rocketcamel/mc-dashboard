@@ -6,10 +6,7 @@ mod routes;
 use std::sync::Arc;
 
 use aws_config::BehaviorVersion;
-use axum::{
-    Router,
-    routing::{get, post},
-};
+use axum::{Router, routing::get};
 use console::style;
 use openssh::{KnownHosts, Session};
 use thiserror_ext::AsReport;
@@ -50,9 +47,7 @@ async fn run() -> crate::error::Result<()> {
             get(|| async { concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")) }),
         )
         .route("/api/backups", get(routes::get_backups::get_backups))
-        .route("/api/auth/login", post(routes::auth::login))
-        .route("/api/auth/register", post(routes::auth::register))
-        .route("/api/auth/me", get(routes::auth::me))
+        .nest("/api/auth", routes::auth::router())
         .layer(session_manager)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

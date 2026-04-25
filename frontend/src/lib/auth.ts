@@ -1,11 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
+import { ApiError } from "./api-error";
 
 export const authQueryOptions = queryOptions({
   queryKey: ["auth"],
   queryFn: async () => {
     const response = await fetch("/api/auth/me");
     if (!response.ok) return null;
-    return await response.json();
+    return response.json();
   },
   staleTime: 1000 * 60 * 5,
 });
@@ -20,8 +21,8 @@ export async function login(username: string, password: string) {
   });
 
   if (!response.ok) {
-    throw new Error("error logging in", { cause: response.statusText });
+    throw new ApiError(response.status, "error logging in");
   }
 
-  return await response.json();
+  return response.json();
 }
