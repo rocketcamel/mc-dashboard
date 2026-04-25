@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { authQueryOptions } from '@/lib/auth'
 
-export const Route = createFileRoute('/')({
+export const Route = createFileRoute('/_authenticated/')({
   component: Index,
   beforeLoad: async ({ context }) => {
     const user = await context.queryClient.ensureQueryData(authQueryOptions)

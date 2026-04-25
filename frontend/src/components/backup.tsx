@@ -43,7 +43,7 @@ export default function Backup() {
         <DropdownMenuContent className="w-40">
           {backups!.map((b, i) => (
             <>
-              <DropdownMenuItem key={i} onSelect={() => setSelectedBackup(b)}>{formatDate(b.date)} - {formatSize(b.bytes)}</DropdownMenuItem>
+              <DropdownMenuItem key={i} className="cursor-pointer" onSelect={() => setSelectedBackup(b)}>{formatDate(b.date)} - {formatSize(b.bytes)}</DropdownMenuItem>
             </>
           ))}
         </DropdownMenuContent>

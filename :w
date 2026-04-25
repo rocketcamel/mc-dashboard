@@ -1,0 +1,7 @@
+export default function Header() {
+  return (
+    <div className="flex max-w-xl mx-auto p-4 bg-secondary/20">
+      mc-rocket-fartshit
+    </div>
+  )
+}
