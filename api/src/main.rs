@@ -1,12 +1,16 @@
 mod auth;
 mod env;
 mod error;
+mod k3s;
 mod routes;
 
 use std::sync::Arc;
 
 use aws_config::BehaviorVersion;
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{get, post},
+};
 use console::style;
 use openssh::{KnownHosts, Session};
 use thiserror_ext::AsReport;
@@ -23,9 +27,14 @@ pub struct AppState {
     pub reqwest_client: reqwest::Client,
     pub environment: Arc<Environment>,
     pub dynamo: aws_sdk_dynamodb::Client,
+    pub kube: kube::Client,
 }
 
 async fn run() -> crate::error::Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("failed to install rustls crypto");
+
     let aws_config = aws_config::load_defaults(BehaviorVersion::v2026_01_12()).await;
     let dynamodb_client = aws_sdk_dynamodb::Client::new(&aws_config);
     let environment = Arc::new(Environment::load()?);
@@ -33,12 +42,16 @@ async fn run() -> crate::error::Result<()> {
     let dynamodb_store = DynamoDBStore::new(dynamodb_client.clone(), environment.clone());
     let session_manager = SessionManagerLayer::new(dynamodb_store)
         .with_expiry(Expiry::OnInactivity(time::Duration::days(7)));
+    let kube_client = kube::Client::try_default()
+        .await
+        .map_err(|e| Error::kube_connect(e))?;
 
     let state = Arc::new(AppState {
         ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
         reqwest_client: reqwest::Client::new(),
         environment,
         dynamo: dynamodb_client,
+        kube: kube_client,
     });
 
     let app = Router::new()
@@ -47,6 +60,10 @@ async fn run() -> crate::error::Result<()> {
             get(|| async { concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")) }),
         )
         .route("/api/backups", get(routes::get_backups::get_backups))
+        .route(
+            "/api/backup_world",
+            post(routes::backup_world::backup_world),
+        )
         .nest("/api/auth", routes::auth::router())
         .layer(session_manager)
         .layer(TraceLayer::new_for_http())

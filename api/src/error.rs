@@ -36,6 +36,15 @@ pub enum ErrorKind {
     Conflict,
     #[error("http error")]
     Http(#[from] reqwest::Error),
+
+    #[error("error connecting to kubernetes cluster")]
+    KubeConnect(#[source] kube::Error),
+    #[error("kube error")]
+    Kube(#[from] kube::Error),
+    #[error("yaml error")]
+    Yaml(#[from] serde_yaml::Error),
+    #[error("error rendering template")]
+    TemplateError(#[from] askama::Error),
 }
 
 impl<E: std::fmt::Debug> From<aws_sdk_dynamodb::error::SdkError<E>> for Error {

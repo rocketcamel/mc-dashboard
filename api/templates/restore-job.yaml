@@ -1,0 +1,132 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minecraft-restore
+  namespace: minecraft
+  labels:
+    app: minecraft-restore
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  
+  template:
+    metadata:
+      labels:
+        app: minecraft-restore
+    spec:
+      restartPolicy: Never
+      
+      securityContext:
+        fsGroup: 2000
+        runAsUser: 1000
+        runAsGroup: 3000
+      
+      containers:
+      - name: restore
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          
+          echo "=========================================="
+          echo "Minecraft World Restore Job"
+          echo "=========================================="
+          echo ""
+          
+          SERVER_NAME="${SERVER_NAME}"
+          BACKUP_FILE="${BACKUP_FILE:-latest.tgz}"
+          BACKUP_PATH="/backups/${BACKUP_FILE}"
+          DATA_DIR="/data"
+          
+          echo "Configuration:"
+          echo "  Server: ${SERVER_NAME}"
+          echo "  Backup file: ${BACKUP_FILE}"
+          echo "  Backup path: ${BACKUP_PATH}"
+          echo "  Data directory: ${DATA_DIR}"
+          echo ""
+          
+          if [ ! -f "${BACKUP_PATH}" ]; then
+            echo "ERROR: Backup file not found: ${BACKUP_PATH}"
+            echo ""
+            echo "Available backups for ${SERVER_NAME}:"
+            ls -lh /backups/ | grep "minecraft-${SERVER_NAME}" || echo "  (none found)"
+            echo ""
+            echo "All backups:"
+            ls -lh /backups/
+            exit 1
+          fi
+          
+          echo "✓ Backup file found"
+          echo "  Size: $(du -hL ${BACKUP_PATH} | cut -f1)"
+          echo ""
+          
+          if [ -d "${DATA_DIR}/world" ]; then
+            echo "⚠ WARNING: Existing world data found!"
+            echo "  The following directories will be removed:"
+            echo "    - ${DATA_DIR}/world"
+            echo "    - ${DATA_DIR}/world_nether"
+            echo "    - ${DATA_DIR}/world_the_end"
+            echo ""
+            echo "Removing existing world data..."
+            rm -rf "${DATA_DIR}/world" "${DATA_DIR}/world_nether" "${DATA_DIR}/world_the_end"
+            echo "✓ Old world data removed"
+          else
+            echo "✓ No existing world data found (clean slate)"
+          fi
+          echo ""
+          
+          echo "Extracting backup..."
+          echo "  From: ${BACKUP_PATH}"
+          echo "  To: ${DATA_DIR}/"
+          echo ""
+          
+          tar -xzf "${BACKUP_PATH}" -C "${DATA_DIR}/"
+{% if should_op %}
+          echo ""
+          echo "Setting ops.json..."
+          cp /ops/ops.json "${DATA_DIR}/ops.json"
+          echo "✓ ops.json written"
+{% endif %}
+          
+          echo ""
+          echo "=========================================="
+          echo "Restore Complete!"
+          echo "=========================================="
+          echo ""
+          echo "Restored world information:"
+          if [ -d "${DATA_DIR}/world" ]; then
+            echo "  World size: $(du -sh ${DATA_DIR}/world | cut -f1)"
+          fi
+        env:
+        - name: SERVER_NAME
+          value: {{ server_name }}
+        - name: BACKUP_FILE
+          value: {{ backup_file_name }}
+        
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: backups
+          mountPath: /backups
+          readOnly: true
+{% if should_op %}
+        - name: ops
+          mountPath: /ops
+          readOnly: true
+{% endif %}
+      
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: minecraft-{{ server_name }}-datadir
+      - name: backups
+        nfs:
+          server: 192.168.27.2
+          path: /backup/minecraft
+{% if should_op %}
+      - name: ops
+        configMap:
+          name: creative-sync
+{% endif %}
