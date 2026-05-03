@@ -13,7 +13,11 @@ export type Backup = {
   date: Date
 }
 
-export default function Backup() {
+interface BackupProps {
+  disabled?: boolean;
+}
+
+export default function Backup({ disabled }: BackupProps) {
   const [selectedBackup, setSelectedBackup] = useState<Backup | null>(null);
   const { data: backups, isPending, error } = useQuery({
     queryKey: ["backups"],
@@ -37,14 +41,12 @@ export default function Backup() {
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button variant="outline">Backup Main World</Button>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" disabled={disabled}>Backup Main World</Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-40">
           {backups!.map((b, i) => (
-            <>
-              <DropdownMenuItem key={i} className="cursor-pointer" onSelect={() => setSelectedBackup(b)}>{formatDate(b.date)} - {formatSize(b.bytes)}</DropdownMenuItem>
-            </>
+            <DropdownMenuItem key={i} className="cursor-pointer" onSelect={() => setSelectedBackup(b)}>{formatDate(b.date)} - {formatSize(b.bytes)}</DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>

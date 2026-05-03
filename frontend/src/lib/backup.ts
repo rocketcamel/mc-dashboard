@@ -8,3 +8,23 @@ export async function get_backups(): Promise<Backup[]> {
 
   return await response.json();
 }
+
+export async function get_status(): Promise<boolean> {
+  const response = await fetch("/api/status")
+  if (!response.ok) {
+    throw new Error("error getting status")
+  }
+
+  const data = await response.json() as { backing_up: boolean }
+  return data.backing_up
+}
+
+export const statusQueryOptions = {
+  queryKey: ["status"],
+  queryFn: get_status,
+  staleTime: 5 * 1000,
+  refetchInterval: (query: { state: { data?: boolean } }) => {
+    // Poll faster when an operation is running
+    return query.state.data ? 2000 : 5000
+  }
+}
