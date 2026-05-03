@@ -3,6 +3,7 @@ mod env;
 mod error;
 mod k3s;
 mod routes;
+mod storage;
 
 use std::sync::Arc;
 
@@ -11,20 +12,20 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use tower_http::services::{ServeDir, ServeFile};
 use console::style;
 use openssh::{KnownHosts, Session};
 use thiserror_ext::AsReport;
 use tokio::net::TcpListener;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use tower_sessions::{Expiry, SessionManagerLayer};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{auth::DynamoDBStore, env::Environment, error::Error};
+use crate::{auth::DynamoDBStore, env::Environment, error::Error, storage::Storage};
 
 pub struct AppState {
-    pub ssh: Session,
+    pub storage: Storage,
     pub reqwest_client: reqwest::Client,
     pub environment: Arc<Environment>,
     pub dynamo: aws_sdk_dynamodb::Client,
@@ -48,7 +49,9 @@ async fn run() -> crate::error::Result<()> {
         .map_err(|e| Error::kube_connect(e))?;
 
     let state = Arc::new(AppState {
-        ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
+        storage: Storage {
+            ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
+        },
         reqwest_client: reqwest::Client::new(),
         environment,
         dynamo: dynamodb_client,
