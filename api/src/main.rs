@@ -11,6 +11,7 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use tower_http::services::{ServeDir, ServeFile};
 use console::style;
 use openssh::{KnownHosts, Session};
 use thiserror_ext::AsReport;
@@ -56,7 +57,7 @@ async fn run() -> crate::error::Result<()> {
 
     let app = Router::new()
         .route(
-            "/",
+            "/api/version",
             get(|| async { concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION")) }),
         )
         .route("/api/backups", get(routes::get_backups::get_backups))
@@ -66,6 +67,7 @@ async fn run() -> crate::error::Result<()> {
         )
         .route("/api/status", get(routes::status::get_status))
         .nest("/api/auth", routes::auth::router())
+        .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .layer(session_manager)
         .layer(TraceLayer::new_for_http())
         .with_state(state);

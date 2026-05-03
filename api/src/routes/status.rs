@@ -14,7 +14,7 @@ pub struct StatusResponse {
 
 pub async fn get_status(
     State(app_state): State<Arc<AppState>>,
-    // AuthUser(_): AuthUser,
+    AuthUser(_): AuthUser,
 ) -> Result<impl IntoResponse> {
     let jobs: Api<Job> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let job_list = jobs.list(&ListParams::default()).await?;
@@ -25,5 +25,5 @@ pub async fn get_status(
             .map_or(false, |s| s.active.unwrap_or(0) > 0)
     });
 
-    Ok(Json(StatusResponse { backing_up: true }))
+    Ok(Json(StatusResponse { backing_up }))
 }

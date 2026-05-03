@@ -9,7 +9,7 @@ pub struct Environment {
 
 impl Environment {
     pub fn load() -> Result<Self> {
-        dotenvy::dotenv()?;
+        dotenvy::dotenv().ok();
 
         Ok(Self {
             table_name: env::var("TABLE_NAME").expect("table_name"),
