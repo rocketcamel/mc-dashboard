@@ -44,7 +44,7 @@ export default function Backup({ disabled }: BackupProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" disabled={disabled}>Backup Main World</Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent className="w-40">
+        <DropdownMenuContent className="w-41">
           {backups!.map((b, i) => (
             <DropdownMenuItem key={i} className="cursor-pointer" onSelect={() => setSelectedBackup(b)}>{formatDate(b.date)} - {formatSize(b.bytes)}</DropdownMenuItem>
           ))}

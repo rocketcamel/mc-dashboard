@@ -13,19 +13,20 @@ use crate::{
     AppState,
     error::{Error, Result},
     k3s::BackupJob,
+    routes::backup_world::ServerName,
 };
 
 pub async fn backup_world(
     app_state: Arc<AppState>,
-    server_name: &str,
+    server_name: &ServerName,
     backup_file_name: &str,
 ) -> Result<()> {
     let jobs: Api<Job> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let deployments: Api<Deployment> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let backup_job = BackupJob {
-        server_name,
+        server_name: server_name.as_ref(),
         backup_file_name,
-        should_op: should_op(server_name),
+        should_op: should_op(server_name.as_ref()),
     }
     .render()?;
     println!("{backup_job}");
@@ -50,7 +51,7 @@ pub async fn backup_world(
         let server_name = server_name.to_string();
         async move {
             let cond = await_condition(jobs, &job_name, conditions::is_job_completed());
-            match tokio::time::timeout(Duration::from_secs(600), cond).await {
+            match tokio::time::timeout(Duration::from_secs(250), cond).await {
                 Ok(Ok(_)) => {
                     let result = deployments
                         .patch(
