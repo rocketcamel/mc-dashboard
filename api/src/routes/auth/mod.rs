@@ -1,4 +1,5 @@
 mod login;
+#[allow(unused)]
 mod register;
 
 use std::sync::Arc;

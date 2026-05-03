@@ -13,7 +13,7 @@ pub struct BackupRequest {
 
 pub async fn backup_world(
     State(app_state): State<Arc<AppState>>,
-    // AuthUser(_): AuthUser,
+    AuthUser(_): AuthUser,
     Json(request): Json<BackupRequest>,
 ) -> Result<impl IntoResponse> {
     backup_world_k3s(app_state, &request.server_name, &request.backup_file_name).await?;

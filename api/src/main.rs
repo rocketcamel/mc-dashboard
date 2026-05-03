@@ -64,6 +64,7 @@ async fn run() -> crate::error::Result<()> {
             "/api/backup_world",
             post(routes::backup_world::backup_world),
         )
+        .route("/api/status", get(routes::status::get_status))
         .nest("/api/auth", routes::auth::router())
         .layer(session_manager)
         .layer(TraceLayer::new_for_http())
