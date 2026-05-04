@@ -14,3 +14,17 @@ export async function backup_world(world: World, backup_file_name = "latest.tar.
   }
   return response.json()
 }
+
+export async function sync_world(from_server_name: World, destination_server_name: World) {
+  const response = await fetch("/api/sync_world", {
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ from_server_name, destination_server_name })
+  })
+
+  if (!response.ok) {
+    throw new Error("error syncing world")
+  }
+  return response.json()
+}
