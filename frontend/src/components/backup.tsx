@@ -3,9 +3,10 @@ import { Button } from "./ui/button";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { get_backups } from "@/lib/backup";
 import { Loader2 } from "lucide-react";
+import { backup_world } from "@/lib/world";
 
 export type Backup = {
   filename: string
@@ -23,6 +24,9 @@ export default function Backup({ disabled }: BackupProps) {
     queryKey: ["backups"],
     queryFn: get_backups,
     staleTime: 60 * 1000,
+  })
+  const { mutate } = useMutation({
+    mutationFn: (file_name: string) => backup_world("main", file_name)
   })
 
   if (error) {
@@ -62,7 +66,11 @@ export default function Backup({ disabled }: BackupProps) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction>Confirm</AlertDialogAction>
+            <AlertDialogAction onClick={() => {
+              if (selectedBackup) {
+                mutate(selectedBackup.filename)
+              }
+            }}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

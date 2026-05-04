@@ -51,6 +51,8 @@ async fn run() -> crate::error::Result<()> {
     let state = Arc::new(AppState {
         storage: Storage {
             ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
+            dynamo: dynamodb_client.clone(),
+            environment: environment.clone(),
         },
         reqwest_client: reqwest::Client::new(),
         environment,

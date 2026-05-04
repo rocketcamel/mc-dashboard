@@ -21,6 +21,10 @@ pub async fn backup_world(
     server_name: &ServerName,
     backup_file_name: &str,
 ) -> Result<()> {
+    if !app_state.storage.aquire_lock().await? {
+        return Err(Error::conflict());
+    }
+
     let jobs: Api<Job> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let deployments: Api<Deployment> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let backup_job = BackupJob {
@@ -51,32 +55,26 @@ pub async fn backup_world(
         let server_name = server_name.to_string();
         async move {
             let cond = await_condition(jobs, &job_name, conditions::is_job_completed());
-            match tokio::time::timeout(Duration::from_secs(250), cond).await {
-                Ok(Ok(_)) => {
-                    let result = deployments
-                        .patch(
-                            &format!("minecraft-{server_name}"),
-                            &PatchParams::default(),
-                            &Patch::Merge(&json!({"spec": {"replicas": 1}})),
-                        )
-                        .await;
-                    if let Err(e) = result {
-                        tracing::error!("{e:?}")
-                    }
-                }
-                _ => {
-                    tracing::error!("backup job {job_name} failed");
-                    let result = deployments
-                        .patch(
-                            &format!("minecraft-{server_name}"),
-                            &PatchParams::default(),
-                            &Patch::Merge(&json!({"spec": {"replicas": 1}})),
-                        )
-                        .await;
-                    if let Err(e) = result {
-                        tracing::error!("{e:?}")
-                    }
-                }
+            let timed_out = tokio::time::timeout(Duration::from_secs(250), cond)
+                .await
+                .is_err();
+            if timed_out {
+                tracing::error!("backup job {job_name} failed");
+            }
+
+            let result = deployments
+                .patch(
+                    &format!("minecraft-{server_name}"),
+                    &PatchParams::default(),
+                    &Patch::Merge(&json!({"spec": {"replicas": 1}})),
+                )
+                .await;
+            if let Err(e) = result {
+                tracing::error!("{e:?}")
+            }
+
+            if let Err(e) = app_state.storage.release_lock().await {
+                tracing::error!("failed to release lock: {e:?}")
             }
         }
     });

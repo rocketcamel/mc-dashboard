@@ -1,7 +1,16 @@
+use aws_sdk_dynamodb::{operation::put_item::PutItemError, types::AttributeValue};
 use chrono::NaiveDateTime;
+use serde::{Deserialize, Serialize};
 
 use super::{Backup, Storage};
-use crate::error::Result;
+use crate::error::{Error, Result};
+
+#[derive(Serialize, Deserialize)]
+pub struct LockItem {
+    pub pk: String,
+    pub sk: String,
+    pub expiry_date: i64,
+}
 
 impl Storage {
     pub async fn get_backups(&self) -> Result<Vec<Backup>> {
@@ -22,6 +31,63 @@ impl Storage {
         backups.sort_by(|a, b| b.date.cmp(&a.date));
 
         Ok(backups)
+    }
+
+    pub async fn get_lock(&self) -> Result<bool> {
+        let result = self
+            .dynamo
+            .get_item()
+            .table_name(&self.environment.table_name)
+            .key("pk", AttributeValue::S("OPERATION_LOCK".to_string()))
+            .key("sk", AttributeValue::S("VALUE".to_string()))
+            .send()
+            .await?;
+        let Some(item) = result.item else {
+            return Ok(false);
+        };
+        let lock: LockItem = serde_dynamo::from_item(item)?;
+
+        Ok(lock.expiry_date >= chrono::Utc::now().timestamp())
+    }
+
+    pub async fn aquire_lock(&self) -> Result<bool> {
+        let item = serde_dynamo::to_item(LockItem {
+            pk: "OPERATION_LOCK".to_string(),
+            sk: "VALUE".to_string(),
+            expiry_date: chrono::Utc::now().timestamp() + 250,
+        })?;
+
+        let result = self
+            .dynamo
+            .put_item()
+            .table_name(&self.environment.table_name)
+            .set_item(Some(item))
+            .condition_expression("attribute_not_exists(pk) OR expiry_date < :now")
+            .expression_attribute_values(
+                ":now",
+                AttributeValue::N(chrono::Utc::now().timestamp().to_string()),
+            )
+            .send()
+            .await;
+
+        match result {
+            Ok(_) => Ok(true),
+            Err(e) => match e.into_service_error() {
+                PutItemError::ConditionalCheckFailedException(_) => Ok(false),
+                other => Err(Error::dynamo_d_b(format!("{other:?}"))),
+            },
+        }
+    }
+
+    pub async fn release_lock(&self) -> Result<()> {
+        self.dynamo
+            .delete_item()
+            .table_name(&self.environment.table_name)
+            .key("pk", AttributeValue::S("OPERATION_LOCK".to_string()))
+            .key("sk", AttributeValue::S("VALUE".to_string()))
+            .send()
+            .await?;
+        Ok(())
     }
 }
 
