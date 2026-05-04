@@ -1,4 +1,5 @@
 mod backup;
+mod sync;
 
 use askama::Template;
 
@@ -10,4 +11,10 @@ pub struct BackupJob<'a> {
     pub server_name: &'a str,
     pub backup_file_name: &'a str,
     pub should_op: bool,
+}
+
+#[derive(Template)]
+#[template(path = "sync-job.yaml", escape = "none")]
+pub struct SyncJob<'a> {
+    pub from_server_name: &'a str,
 }

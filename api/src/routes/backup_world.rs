@@ -21,7 +21,7 @@ pub struct BackupRequest {
     pub backup_file_name: String,
 }
 
-#[derive(Deserialize, Display, AsRefStr)]
+#[derive(Deserialize, Display, AsRefStr, Clone)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum ServerName {

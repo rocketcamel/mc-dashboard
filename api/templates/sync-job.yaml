@@ -1,0 +1,68 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minecraft-sync
+  namespace: minecraft
+  labels:
+    app: minecraft-sync
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 30
+  
+  template:
+    metadata:
+      labels:
+        app: minecraft-sync
+    spec:
+      restartPolicy: Never
+      
+      securityContext:
+        fsGroup: 2000
+        runAsUser: 1000
+        runAsGroup: 3000
+      nodeSelector:
+        kubernetes.io/hostname: kube
+      
+      containers:
+      - name: restore
+        image: busybox:latest
+        command:
+        - sh
+        - -c
+        - |
+          set -e
+          
+          echo "=========================================="
+          echo "Minecraft World Sync Job"
+          echo "=========================================="
+          echo ""
+          
+          SERVER_NAME="{{ from_server_name }}"
+          BACKUP_FILE="{{ from_server_name }}-sync.tar.gz"
+          BACKUP_PATH="/backups/${BACKUP_FILE}"
+          DATA_DIR="/data"
+          
+          echo "Configuration:"
+          echo "  Server: ${SERVER_NAME}"
+          echo "  Backup file: ${BACKUP_FILE}"
+          echo "  Backup path: ${BACKUP_PATH}"
+          echo "  Data directory: ${DATA_DIR}"
+          echo ""
+
+          echo "creating backup ${BACKUP_PATH}"
+          tar -czf "${BACKUP_PATH}" -C /data .
+
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: backups
+          mountPath: /backups
+      
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: minecraft-{{ from_server_name }}-datadir
+      - name: backups
+        nfs:
+          server: 192.168.27.2
+          path: /backup/minecraft
