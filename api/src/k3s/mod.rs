@@ -4,6 +4,7 @@ mod sync;
 use askama::Template;
 
 pub use backup::backup_world;
+pub use sync::sync_world;
 
 #[derive(Template)]
 #[template(path = "restore-job.yaml", escape = "none")]

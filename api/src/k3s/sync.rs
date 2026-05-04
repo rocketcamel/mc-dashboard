@@ -75,7 +75,7 @@ async fn sync_handler(
 
     scale_deployment(
         deployments.clone(),
-        &format!("minecraft-{from_server_name}"),
+        &format!("minecraft-{destination_server_name}"),
         0,
     )
     .await?;
@@ -98,8 +98,8 @@ async fn sync_handler(
     }
 
     scale_deployment(
-        deployments.clone(),
-        &format!("minecraft-{from_server_name}"),
+        deployments,
+        &format!("minecraft-{destination_server_name}"),
         1,
     )
     .await?;
