@@ -44,7 +44,7 @@ pub async fn sync_world(
         let destination_server_name = destination_server_name.clone();
         async move {
             if let Err(e) = sync_handler(
-                app_state,
+                app_state.clone(),
                 jobs,
                 job_name,
                 from_server_name,
@@ -53,6 +53,9 @@ pub async fn sync_world(
             .await
             {
                 tracing::error!("sync failed: {e:?}")
+            }
+            if let Err(e) = app_state.storage.release_lock().await {
+                tracing::error!("error releasing lock: {e:?}")
             }
         }
     });
