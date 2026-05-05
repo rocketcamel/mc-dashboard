@@ -2,7 +2,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "./ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { backup_world, sync_world } from "@/lib/world";
 import { toast } from "sonner";
 
@@ -14,6 +14,7 @@ interface SyncProps {
 
 export default function Sync({ disabled }: SyncProps) {
   const [selectedMode, setSelectedMode] = useState<SyncMode>(null);
+  const queryClient = useQueryClient();
 
   const { mutate } = useMutation({
     mutationFn: (mode: Exclude<SyncMode, null>) => {
@@ -26,6 +27,7 @@ export default function Sync({ disabled }: SyncProps) {
     },
     onSuccess: () => {
       toast.success("Successfully synced creative world")
+      queryClient.invalidateQueries({ queryKey: ["status"] })
     }
   })
 

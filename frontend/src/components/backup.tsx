@@ -37,7 +37,7 @@ export default function Backup({ disabled }: BackupProps) {
   if (isPending) {
     return (
       <Button disabled>
-        <Loader2 className="animate-spin" />
+        <Loader2 className="animate-spin min-w-[111px]" />
       </Button>
     )
   }

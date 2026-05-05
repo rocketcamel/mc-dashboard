@@ -1,7 +1,9 @@
 import Backup from '@/components/backup'
+import StatusDot from '@/components/status-dot'
 import Sync from '@/components/sync'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { statusQueryOptions } from '@/lib/backup'
+import { get_world_statuses } from '@/lib/world'
 import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { Loader2 } from 'lucide-react'
@@ -12,6 +14,12 @@ export const Route = createFileRoute('/_authenticated/')({
 
 function Index() {
   const { data: isOperationRunning } = useQuery(statusQueryOptions)
+  const { data: statuses } = useQuery({
+    queryKey: ["status", "world"],
+    queryFn: get_world_statuses,
+    staleTime: 20 * 1000,
+    refetchInterval: 20 * 1000
+  })
 
   return (
     <div className='flex flex-col items-center max-w-334 mx-auto mt-6'>
@@ -31,8 +39,14 @@ function Index() {
             )}
           </CardHeader>
           <CardContent className='grid grid-cols-2 gap-4'>
-            <Sync disabled={isOperationRunning} />
-            <Backup disabled={isOperationRunning} />
+            <div className='flex items-center gap-2'>
+              <StatusDot status={statuses?.creative} />
+              <Sync disabled={isOperationRunning} />
+            </div>
+            <div className='flex items-center gap-2'>
+              <StatusDot status={statuses?.main} />
+              <Backup disabled={isOperationRunning} />
+            </div>
           </CardContent>
         </Card>
       </div>

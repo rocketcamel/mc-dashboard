@@ -1,5 +1,13 @@
 export type World = "main" | "creative";
 
+export async function get_world_statuses() {
+  const response = await fetch("/api/world_status");
+  if (!response.ok) {
+    throw new Error("error getting world statuses");
+  }
+  return response.json();
+}
+
 export async function backup_world(
   world: World,
   backup_file_name = "latest.tar.gz",
