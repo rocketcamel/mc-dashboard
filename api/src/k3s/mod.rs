@@ -1,9 +1,11 @@
 mod backup;
+mod status;
 mod sync;
 
 use askama::Template;
 
 pub use backup::backup_world;
+pub use status::get_status;
 pub use sync::sync_world;
 
 #[derive(Template)]

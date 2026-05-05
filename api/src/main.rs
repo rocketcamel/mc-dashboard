@@ -72,6 +72,7 @@ async fn run() -> crate::error::Result<()> {
         )
         .route("/api/sync_world", post(routes::sync_world::sync_world))
         .route("/api/status", get(routes::status::get_status))
+        .route("/api/world_status", get(routes::status::get_world_status))
         .nest("/api/auth", routes::auth::router())
         .fallback_service(ServeDir::new("dist").fallback(ServeFile::new("dist/index.html")))
         .layer(session_manager)
