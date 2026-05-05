@@ -54,7 +54,9 @@ where
             .await
             .map_err(|_| Error::forbidden())?;
         let backups = app_state.storage.get_backups().await?;
-        if !backups.iter().any(|b| b.filename == body.backup_file_name) {
+        if !backups.iter().any(|b| b.filename == body.backup_file_name)
+            && body.backup_file_name != "latest.tar.gz"
+        {
             return Err(Error::not_found());
         }
 

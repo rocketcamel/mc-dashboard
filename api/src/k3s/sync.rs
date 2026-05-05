@@ -86,11 +86,15 @@ async fn sync_handler(
     let backup_job = BackupJob {
         server_name: destination_server_name.as_ref(),
         backup_file_name: &format!("{from_server_name}-sync.tar.gz"),
-        should_op: false,
+        should_op: destination_server_name.as_ref() == "creative",
     }
     .render()?;
     let job: Job = serde_yaml::from_str(&backup_job)?;
     jobs.create(&PostParams::default(), &job).await?;
+    let job_name = job
+        .metadata
+        .name
+        .ok_or(Error::internal("job has no name"))?;
     let cond = await_condition(jobs, &job_name, conditions::is_job_completed());
     let timed_out = tokio::time::timeout(Duration::from_secs(250), cond)
         .await
