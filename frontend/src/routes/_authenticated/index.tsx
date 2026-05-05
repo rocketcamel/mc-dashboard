@@ -1,5 +1,5 @@
 import Backup from '@/components/backup'
-import StatusDot from '@/components/status-dot'
+import StatusBadge from '@/components/status-badge'
 import Sync from '@/components/sync'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { statusQueryOptions } from '@/lib/backup'
@@ -39,12 +39,18 @@ function Index() {
             )}
           </CardHeader>
           <CardContent className='grid grid-cols-2 gap-4'>
-            <div className='flex items-center gap-2'>
-              <StatusDot status={statuses?.creative} />
+            <div className='flex flex-col gap-2'>
+              <div className='flex items-center gap-2'>
+                <span className='text-sm font-medium'>Creative</span>
+                <StatusBadge status={statuses?.creative} />
+              </div>
               <Sync disabled={isOperationRunning} />
             </div>
-            <div className='flex items-center gap-2'>
-              <StatusDot status={statuses?.main} />
+            <div className='flex flex-col gap-2'>
+              <div className='flex items-center gap-2'>
+                <span className='text-sm font-medium'>Main</span>
+                <StatusBadge status={statuses?.main} />
+              </div>
               <Backup disabled={isOperationRunning} />
             </div>
           </CardContent>
