@@ -1,6 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
 
-use axum::{Json, response::IntoResponse};
 use k8s_openapi::api::apps::v1::Deployment;
 use kube::Api;
 use serde::Serialize;
