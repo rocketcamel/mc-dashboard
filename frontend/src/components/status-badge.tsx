@@ -7,12 +7,13 @@ const config = {
   stopped: { label: "Stopped", className: "bg-gray-500/15 text-gray-600 dark:text-gray-400" },
   error: { label: "Error", className: "bg-red-500/15 text-red-700 dark:text-red-400" },
   unknown: { label: "Unknown", className: "bg-gray-500/10 text-gray-500" },
+  fetching: { label: "Fetching...", className: "bg-gray-500/10 text-gray-500" },
 } as const
 
 export type ContainerStatus = keyof typeof config
 
-export default function StatusBadge({ status }: { status?: ContainerStatus }) {
-  const s = status ?? "unknown"
+export default function StatusBadge({ status, isPending }: { status?: ContainerStatus, isPending?: boolean }) {
+  const s = status ?? (isPending ? "fetching" : "unknown")
   const { label, className } = config[s]
   return (
     <Badge variant="outline" className={cn("border-transparent", className)}>

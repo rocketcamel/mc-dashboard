@@ -14,7 +14,7 @@ export const Route = createFileRoute('/_authenticated/')({
 
 function Index() {
   const { data: isOperationRunning } = useQuery(statusQueryOptions)
-  const { data: statuses } = useQuery({
+  const { data: statuses, isPending: world_pending } = useQuery({
     queryKey: ["status", "world"],
     queryFn: get_world_statuses,
     staleTime: 20 * 1000,
@@ -42,14 +42,14 @@ function Index() {
             <div className='flex flex-col gap-2'>
               <div className='flex items-center gap-2'>
                 <span className='text-sm font-medium'>Creative</span>
-                <StatusBadge status={statuses?.creative} />
+                <StatusBadge status={statuses?.creative} isPending={world_pending} />
               </div>
               <Sync disabled={isOperationRunning} />
             </div>
             <div className='flex flex-col gap-2'>
               <div className='flex items-center gap-2'>
                 <span className='text-sm font-medium'>Main</span>
-                <StatusBadge status={statuses?.main} />
+                <StatusBadge status={statuses?.main} isPending={world_pending} />
               </div>
               <Backup disabled={isOperationRunning} />
             </div>
