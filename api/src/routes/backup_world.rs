@@ -6,27 +6,19 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use strum::{AsRefStr, Display};
 
 use crate::{
     AppState,
     auth::AuthUser,
     error::{Error, Result},
     k3s::backup_world as backup_world_k3s,
+    routes::World,
 };
 
 #[derive(Deserialize)]
 pub struct BackupRequest {
-    pub server_name: ServerName,
+    pub server_name: World,
     pub backup_file_name: String,
-}
-
-#[derive(Deserialize, Display, AsRefStr, Clone)]
-#[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
-pub enum ServerName {
-    Main,
-    Creative,
 }
 
 pub async fn backup_world(

@@ -4,14 +4,13 @@ use axum::{Json, extract::State, response::IntoResponse};
 use serde::Deserialize;
 
 use crate::{
-    AppState, auth::AuthUser, error::Result, k3s::sync_world as sync_world_k3s,
-    routes::backup_world::ServerName,
+    AppState, auth::AuthUser, error::Result, k3s::sync_world as sync_world_k3s, routes::World,
 };
 
 #[derive(Deserialize)]
 pub struct SyncRequest {
-    pub from_server_name: ServerName,
-    pub destination_server_name: ServerName,
+    pub from_server_name: World,
+    pub destination_server_name: World,
 }
 
 pub async fn sync_world(
