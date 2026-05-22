@@ -22,6 +22,7 @@ use crate::{
 };
 
 #[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum MessageKind {
     Log,
     Error,
@@ -33,11 +34,11 @@ pub struct LogStreamMessage<'a> {
     pub data: &'a str,
 }
 
-fn to_message(kind: MessageKind, data: &str) -> Result<Vec<u8>, errors::StreamLogsError> {
-    Ok(serde_json::to_vec(&LogStreamMessage { kind, data })?)
+fn to_message(kind: MessageKind, data: &str) -> Result<String, errors::StreamLogsError> {
+    Ok(serde_json::to_string(&LogStreamMessage { kind, data })?)
 }
 
-async fn pod_name(world: World, client: kube::Client) -> Result<String, errors::StreamLogsError> {
+async fn pod_name(world: &World, client: kube::Client) -> Result<String, errors::StreamLogsError> {
     let pods: Api<Pod> = Api::namespaced(client, "minecraft");
 
     for pod in pods
@@ -60,14 +61,18 @@ pub async fn stream_logs(
     socket: &mut WebSocket,
 ) -> Result<(), errors::StreamLogsError> {
     let pods: Api<Pod> = Api::namespaced(app_state.kube.clone(), "minecraft");
-    let name = pod_name(world, app_state.kube.clone()).await?;
+    let name = pod_name(&world, app_state.kube.clone()).await?;
 
-    let lp = LogParams::default();
+    let lp = LogParams {
+        container: Some(format!("minecraft-{world}")),
+        follow: true,
+        ..Default::default()
+    };
     let mut logs = pods.log_stream(&name, &lp).await?.lines();
 
     while let Some(log) = logs.try_next().await? {
         let message = to_message(MessageKind::Log, &log)?;
-        if socket.send(Message::Binary(message.into())).await.is_err() {
+        if socket.send(Message::Text(message.into())).await.is_err() {
             return Ok(());
         }
     }
@@ -81,7 +86,7 @@ async fn throw(socket: &mut WebSocket, why: &str) {
         return;
     };
 
-    let result = socket.send(Message::Binary(message.into())).await;
+    let result = socket.send(Message::Text(message.into())).await;
 
     if let Err(e) = result {
         tracing::error!("websocket error: {}", e.as_report())
@@ -118,7 +123,7 @@ pub mod errors {
     pub enum StreamLogsErrorKind {
         #[error("pod has no name")]
         NoName,
-        #[error("pod doesnt exist")]
+        #[error("Server is offline")]
         NullPod,
         #[error("kube error")]
         Kube(#[from] kube::Error),
