@@ -2,3 +2,8 @@ api/target
 .terraform
 *.tfstate
 *.tfstate.backup
+
+
+# Added by cargo
+
+/target
