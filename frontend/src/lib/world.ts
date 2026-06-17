@@ -1,4 +1,13 @@
+import { useEffect, useRef, useState } from "react";
+
 export type World = "main" | "creative";
+
+export type LogMessage = {
+  kind: "log" | "error";
+  data: string;
+};
+
+type ViewState = "connected" | "connecting" | "off";
 
 export async function get_world_statuses() {
   const response = await fetch("/api/world_status");
@@ -42,4 +51,30 @@ export async function sync_world(
     throw new Error("error syncing world");
   }
   return response.json();
+}
+
+export function useLogStream(world: World): [LogMessage[], ViewState] {
+  const [logs, setLogs] = useState<LogMessage[]>([]);
+  const [viewState, setViewState] = useState<ViewState>("off");
+  const buffer = useRef<LogMessage[]>([]);
+
+  useEffect(() => {
+    if (!world) return;
+    buffer.current.length = 0;
+    setViewState("connecting");
+    const ws = new WebSocket(`/api/logs/${world}`);
+
+    ws.onopen = () => setViewState("connected");
+    ws.onclose = () => setViewState("off");
+    ws.onmessage = (e) => {
+      console.warn("got log");
+      const msg = JSON.parse(e.data) as LogMessage;
+      buffer.current.push(msg);
+      setLogs([...buffer.current.slice(-200)]);
+    };
+
+    return () => ws.close();
+  }, [world]);
+
+  return [logs, viewState];
 }

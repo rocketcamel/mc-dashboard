@@ -1,4 +1,5 @@
 import Backup from '@/components/backup'
+import LogViewer from '@/components/log-view'
 import StatusBadge from '@/components/status-badge'
 import Sync from '@/components/sync'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -56,6 +57,7 @@ function Index() {
           </CardContent>
         </Card>
       </div>
+      <LogViewer />
     </div>
   )
 }

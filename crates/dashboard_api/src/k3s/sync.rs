@@ -13,13 +13,13 @@ use crate::{
     AppState,
     error::{Error, Result},
     k3s::{BackupJob, SyncJob},
-    routes::backup_world::ServerName,
+    routes::World,
 };
 
 pub async fn sync_world(
     app_state: Arc<AppState>,
-    from_server_name: &ServerName,
-    destination_server_name: &ServerName,
+    from_server_name: &World,
+    destination_server_name: &World,
 ) -> Result<()> {
     if !app_state.storage.aquire_lock().await? {
         return Err(Error::conflict());
@@ -66,8 +66,8 @@ async fn sync_handler(
     app_state: Arc<AppState>,
     jobs: Api<Job>,
     job_name: String,
-    from_server_name: ServerName,
-    destination_server_name: ServerName,
+    from_server_name: World,
+    destination_server_name: World,
 ) -> Result<()> {
     let deployments: Api<Deployment> = Api::namespaced(app_state.kube.clone(), "minecraft");
     let cond = await_condition(jobs.clone(), &job_name, conditions::is_job_completed());

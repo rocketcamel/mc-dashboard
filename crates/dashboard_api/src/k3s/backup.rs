@@ -13,12 +13,12 @@ use crate::{
     AppState,
     error::{Error, Result},
     k3s::BackupJob,
-    routes::backup_world::ServerName,
+    routes::World,
 };
 
 pub async fn backup_world(
     app_state: Arc<AppState>,
-    server_name: &ServerName,
+    server_name: &World,
     backup_file_name: &str,
 ) -> Result<()> {
     if !app_state.storage.aquire_lock().await? {
