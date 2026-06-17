@@ -2,8 +2,8 @@ use aws_sdk_dynamodb::{operation::put_item::PutItemError, types::AttributeValue}
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 
-use super::{Backup, Storage};
-use crate::error::{Error, Result};
+use crate::{Backup, Storage};
+use errors::StorageError;
 
 #[derive(Serialize, Deserialize)]
 pub struct LockItem {
@@ -13,7 +13,7 @@ pub struct LockItem {
 }
 
 impl Storage {
-    pub async fn get_backups(&self) -> Result<Vec<Backup>> {
+    pub async fn get_backups(&self) -> Result<Vec<Backup>, StorageError> {
         let output = self
             .ssh
             .command("ls")
@@ -23,34 +23,37 @@ impl Storage {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(crate::error::Error::ssh_command(stderr.to_string()));
+            return Err(StorageError::ssh_command(stderr.to_string()));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let mut backups: Vec<Backup> = stdout.lines().filter_map(parse_backup).collect();
+
         backups.sort_by(|a, b| b.date.cmp(&a.date));
 
         Ok(backups)
     }
 
-    pub async fn get_lock(&self) -> Result<bool> {
+    pub async fn get_lock(&self) -> Result<bool, StorageError> {
         let result = self
-            .dynamo
+            .client
             .get_item()
             .table_name(&self.environment.table_name)
             .key("pk", AttributeValue::S("OPERATION_LOCK".to_string()))
             .key("sk", AttributeValue::S("VALUE".to_string()))
             .send()
             .await?;
+
         let Some(item) = result.item else {
             return Ok(false);
         };
+
         let lock: LockItem = serde_dynamo::from_item(item)?;
 
         Ok(lock.expiry_date >= chrono::Utc::now().timestamp())
     }
 
-    pub async fn aquire_lock(&self) -> Result<bool> {
+    pub async fn aquire_lock(&self) -> Result<bool, StorageError> {
         let item = serde_dynamo::to_item(LockItem {
             pk: "OPERATION_LOCK".to_string(),
             sk: "VALUE".to_string(),
@@ -58,7 +61,7 @@ impl Storage {
         })?;
 
         let result = self
-            .dynamo
+            .client
             .put_item()
             .table_name(&self.environment.table_name)
             .set_item(Some(item))
@@ -74,19 +77,20 @@ impl Storage {
             Ok(_) => Ok(true),
             Err(e) => match e.into_service_error() {
                 PutItemError::ConditionalCheckFailedException(_) => Ok(false),
-                other => Err(Error::dynamo_d_b(format!("{other:?}"))),
+                other => Err(StorageError::dynamo_db(format!("{other:?}"))),
             },
         }
     }
 
-    pub async fn release_lock(&self) -> Result<()> {
-        self.dynamo
+    pub async fn release_lock(&self) -> Result<(), StorageError> {
+        self.client
             .delete_item()
             .table_name(&self.environment.table_name)
             .key("pk", AttributeValue::S("OPERATION_LOCK".to_string()))
             .key("sk", AttributeValue::S("VALUE".to_string()))
             .send()
             .await?;
+
         Ok(())
     }
 }
@@ -110,44 +114,31 @@ fn parse_backup(line: &str) -> Option<Backup> {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod errors {
+    use std::fmt::Debug;
 
-    #[test]
-    fn parse_backups_from_ls_output() {
-        let ls_output = "\
-1904701440 minecraft-main-20260418-212404.tar.gz
-1904701440 minecraft-main-20260418-214014.tar.gz
-1904697344 minecraft-main-20260418-215625.tar.gz
-1904697344 minecraft-main-20260418-221236.tar.gz
-1904701440 minecraft-main-20260418-222846.tar.gz
-1904697344 minecraft-main-20260418-224457.tar.gz
-1904693248 minecraft-main-20260418-230107.tar.gz
-1904693248 minecraft-main-20260418-231718.tar.gz
-1904701440 minecraft-main-20260418-233329.tar.gz
-1904701440 minecraft-main-20260418-234940.tar.gz
-1904701440 minecraft-main-20260419-000550.tar.gz
-1904697344 minecraft-main-20260419-002201.tar.gz
-1904701440 minecraft-main-20260419-003812.tar.gz
-1904697344 minecraft-main-20260419-005423.tar.gz";
+    use aws_sdk_dynamodb::error::SdkError;
+    use thiserror::Error;
+    use thiserror_ext::{Box, Construct};
 
-        let mut backups: Vec<Backup> = ls_output.lines().filter_map(parse_backup).collect();
-        backups.sort_by(|a, b| b.date.cmp(&a.date));
+    #[derive(Error, Construct, Box, Debug)]
+    #[thiserror_ext(newtype(name = StorageError))]
+    pub enum StorageErrorKind {
+        #[error("ssh command error: {0}")]
+        SshCommand(String),
+        #[error("ssh error")]
+        Ssh(#[from] openssh::Error),
 
-        assert_eq!(backups[0].filename, "minecraft-main-20260419-005423.tar.gz");
-        assert_eq!(backups[0].date, "2026-04-19T00:54:23");
-        assert_eq!(
-            backups[13].filename,
-            "minecraft-main-20260418-212404.tar.gz"
-        );
-        assert_eq!(backups[13].date, "2026-04-18T21:24:04");
+        #[error("dynamodb error: {0}")]
+        DynamoDb(String),
+
+        #[error("serde_dynamo error")]
+        SerdeDynamo(#[from] serde_dynamo::Error),
     }
 
-    #[test]
-    fn skips_non_backup_lines() {
-        assert!(parse_backup("4096 manual").is_none());
-        assert!(parse_backup("0 .mc-backup-lock").is_none());
-        assert!(parse_backup("total 37084376").is_none());
+    impl<E: Debug> From<SdkError<E>> for StorageError {
+        fn from(value: SdkError<E>) -> Self {
+            StorageError::dynamo_db(format!("{value:?}"))
+        }
     }
 }

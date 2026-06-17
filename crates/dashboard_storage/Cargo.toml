@@ -1,0 +1,21 @@
+[package]
+name = "dashboard_storage"
+version = "0.2.0"
+edition = "2024"
+
+[dependencies]
+aws-sdk-dynamodb = { workspace = true }
+aws-config = "1.8.18"
+chrono = "0.4.45"
+openssh = "0.11.6"
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_dynamo = { version = "4.3.0", features = ["aws-sdk-dynamodb+1"] }
+thiserror = { workspace = true }
+thiserror-ext = { workspace = true }
+async-trait = "0.1.89"
+time = "0.3.49"
+tower-sessions = { workspace = true }
+tokio = { workspace = true }
+argon2 = { workspace = true }
+rand_core = { version = "0.6", features = ["std"] }

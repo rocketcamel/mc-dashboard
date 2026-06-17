@@ -6,13 +6,14 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
+use storage::World;
+
+use dashboard_k3s::restore::backup_world as backup_world_k3s;
 
 use crate::{
     AppState,
     auth::AuthUser,
     error::{Error, Result},
-    k3s::backup_world as backup_world_k3s,
-    routes::World,
 };
 
 #[derive(Deserialize)]
@@ -26,8 +27,13 @@ pub async fn backup_world(
     AuthUser(_): AuthUser,
     request: BackupRequest,
 ) -> Result<impl IntoResponse> {
-    backup_world_k3s(app_state, &request.server_name, &request.backup_file_name).await?;
-
+    backup_world_k3s(
+        app_state.storage.clone(),
+        app_state.kubernetes.clone(),
+        &request.server_name,
+        &request.backup_file_name,
+    )
+    .await?;
     Ok(())
 }
 

@@ -9,6 +9,5 @@ pub async fn get_backups(
     AuthUser(_): AuthUser,
 ) -> Result<impl IntoResponse> {
     let backups = app_state.storage.get_backups().await?;
-
     Ok(Json(backups))
 }

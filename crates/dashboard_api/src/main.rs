@@ -1,19 +1,17 @@
 mod auth;
 mod env;
 mod error;
-mod k3s;
 mod routes;
-mod storage;
 
 use std::sync::Arc;
 
-use aws_config::BehaviorVersion;
 use axum::{
     Router,
     routing::{get, post},
 };
 use console::style;
-use openssh::{KnownHosts, Session};
+use dashboard_k3s::Kubernetes;
+use storage::Storage;
 use thiserror_ext::AsReport;
 use tokio::net::TcpListener;
 use tower_http::services::{ServeDir, ServeFile};
@@ -22,14 +20,13 @@ use tower_sessions::{Expiry, SessionManagerLayer};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-use crate::{auth::DynamoDBStore, env::Environment, error::Error, storage::Storage};
+use crate::{env::Environment, error::Error};
 
 pub struct AppState {
-    pub storage: Storage,
+    pub storage: Arc<Storage>,
+    pub kubernetes: Arc<Kubernetes>,
     pub reqwest_client: reqwest::Client,
     pub environment: Arc<Environment>,
-    pub dynamo: aws_sdk_dynamodb::Client,
-    pub kube: kube::Client,
 }
 
 async fn run() -> crate::error::Result<()> {
@@ -37,27 +34,16 @@ async fn run() -> crate::error::Result<()> {
         .install_default()
         .expect("failed to install rustls crypto");
 
-    let aws_config = aws_config::load_defaults(BehaviorVersion::v2026_01_12()).await;
-    let dynamodb_client = aws_sdk_dynamodb::Client::new(&aws_config);
     let environment = Arc::new(Environment::load()?);
-
-    let dynamodb_store = DynamoDBStore::new(dynamodb_client.clone(), environment.clone());
-    let session_manager = SessionManagerLayer::new(dynamodb_store)
+    let storage = Arc::new(Storage::create_storage(environment.table_name.clone()).await?);
+    let session_manager = SessionManagerLayer::new(storage.session_store.clone())
         .with_expiry(Expiry::OnInactivity(time::Duration::days(7)));
-    let kube_client = kube::Client::try_default()
-        .await
-        .map_err(|e| Error::kube_connect(e))?;
 
     let state = Arc::new(AppState {
-        storage: Storage {
-            ssh: Session::connect("root@192.168.27.2", KnownHosts::Accept).await?,
-            dynamo: dynamodb_client.clone(),
-            environment: environment.clone(),
-        },
+        storage,
+        kubernetes: Kubernetes::create_state().await?.into(),
         reqwest_client: reqwest::Client::new(),
         environment,
-        dynamo: dynamodb_client,
-        kube: kube_client,
     });
 
     let app = Router::new()

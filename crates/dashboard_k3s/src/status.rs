@@ -1,10 +1,11 @@
 use std::{collections::HashMap, sync::Arc};
 
-use k8s_openapi::api::apps::v1::Deployment;
+use k8s_openapi::{api::apps::v1::Deployment, serde::Serialize};
 use kube::Api;
-use serde::Serialize;
 
-use crate::{AppState, error::Result};
+use crate::Kubernetes;
+
+pub use errors::StatusError;
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -15,8 +16,10 @@ pub enum ServerStatus {
     Unknown,
 }
 
-pub async fn get_status(app_state: Arc<AppState>) -> Result<HashMap<String, ServerStatus>> {
-    let deployments: Api<Deployment> = Api::namespaced(app_state.kube.clone(), "minecraft");
+pub async fn get_status(
+    kubernetes: Arc<Kubernetes>,
+) -> Result<HashMap<String, ServerStatus>, StatusError> {
+    let deployments: Api<Deployment> = Api::namespaced(kubernetes.client.clone(), "minecraft");
     let mut statuses = HashMap::new();
 
     for world in ["main", "creative"] {
@@ -26,6 +29,7 @@ pub async fn get_status(app_state: Arc<AppState>) -> Result<HashMap<String, Serv
             Some(s) => {
                 let replicas = s.replicas.unwrap_or(0);
                 let ready = s.ready_replicas.unwrap_or(0);
+
                 if replicas == 0 {
                     ServerStatus::Stopped
                 } else if ready > 0 {
@@ -41,4 +45,16 @@ pub async fn get_status(app_state: Arc<AppState>) -> Result<HashMap<String, Serv
     }
 
     Ok(statuses)
+}
+
+pub mod errors {
+    use thiserror::Error;
+    use thiserror_ext::{Box, Construct};
+
+    #[derive(Error, Construct, Box, Debug)]
+    #[thiserror_ext(newtype(name = StatusError))]
+    pub enum StatusErrorKind {
+        #[error("kubernetes error")]
+        Kubernetes(#[from] kube::Error),
+    }
 }

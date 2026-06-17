@@ -1,12 +1,22 @@
-mod backup;
-mod status;
-mod sync;
-
 use askama::Template;
 
-pub use backup::backup_world;
-pub use status::get_status;
-pub use sync::sync_world;
+pub mod logging;
+pub mod restore;
+pub mod status;
+
+pub use restore::errors::KubernetesError;
+
+pub struct Kubernetes {
+    client: kube::Client,
+}
+
+impl Kubernetes {
+    pub async fn create_state() -> Result<Self, restore::errors::KubernetesError> {
+        Ok(Self {
+            client: kube::Client::try_default().await?,
+        })
+    }
+}
 
 #[derive(Template)]
 #[template(path = "restore-job.yaml", escape = "none")]
