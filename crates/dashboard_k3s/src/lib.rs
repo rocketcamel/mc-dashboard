@@ -3,6 +3,7 @@ use askama::Template;
 pub mod logging;
 pub mod restore;
 pub mod status;
+pub mod whitelist;
 
 pub use restore::errors::KubernetesError;
 

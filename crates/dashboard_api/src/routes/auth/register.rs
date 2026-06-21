@@ -6,7 +6,7 @@ use tower_sessions::Session;
 
 use super::errors::AuthRouteError;
 
-use crate::AppState;
+use crate::{AppState, auth::AuthUser};
 
 #[derive(Deserialize)]
 pub struct RegisterRequest {

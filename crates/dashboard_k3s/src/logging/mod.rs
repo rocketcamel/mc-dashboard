@@ -7,11 +7,15 @@ use kube::{
     api::{ListParams, LogParams},
 };
 use serde::Serialize;
-use storage::World;
+use storage::{NAMESPACE_NAME, World};
 
 pub use errors::LoggingError;
 
 use crate::Kubernetes;
+
+type Cursor = usize;
+
+pub type LogStream = Pin<Box<dyn Stream<Item = Result<LogMessage, LoggingError>> + Send>>;
 
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -26,10 +30,13 @@ pub struct LogMessage {
     pub data: String,
 }
 
-pub type LogStream = Pin<Box<dyn Stream<Item = Result<LogMessage, LoggingError>> + Send>>;
+#[derive(Serialize)]
+pub struct Snapshot {
+    pub data: Vec<LogMessage>,
+}
 
 async fn pod_name(world: &World, client: kube::Client) -> Result<String, LoggingError> {
-    let pods: Api<Pod> = Api::namespaced(client, "minecraft");
+    let pods: Api<Pod> = Api::namespaced(client, NAMESPACE_NAME);
 
     for pod in pods
         .list(&ListParams::default().labels(&format!("app=minecraft-{world}")))
@@ -45,16 +52,43 @@ async fn pod_name(world: &World, client: kube::Client) -> Result<String, Logging
     Err(LoggingError::null_pod(world.as_ref()))
 }
 
+pub async fn snapshot_logs(
+    kubernetes: Arc<Kubernetes>,
+    world: &World,
+) -> Result<Snapshot, LoggingError> {
+    let pods: Api<Pod> = Api::namespaced(kubernetes.client.clone(), NAMESPACE_NAME);
+    let name = pod_name(&world, kubernetes.client.clone()).await?;
+
+    let lp = LogParams {
+        container: Some(format!("minecraft-{world}")),
+        tail_lines: Some(300),
+        ..Default::default()
+    };
+
+    let logs: Vec<LogMessage> = pods
+        .logs(&name, &lp)
+        .await?
+        .split("\n")
+        .map(|data| LogMessage {
+            kind: MessageKind::Log,
+            data: data.to_string(),
+        })
+        .collect();
+
+    Ok(Snapshot { data: logs })
+}
+
 pub async fn stream_logs(
     kubernetes: Arc<Kubernetes>,
     world: &World,
 ) -> Result<LogStream, LoggingError> {
-    let pods: Api<Pod> = Api::namespaced(kubernetes.client.clone(), "minecraft");
+    let pods: Api<Pod> = Api::namespaced(kubernetes.client.clone(), NAMESPACE_NAME);
     let name = pod_name(&world, kubernetes.client.clone()).await?;
 
     let lp = LogParams {
         container: Some(format!("minecraft-{world}")),
         follow: true,
+        since_time: Some(k8s_openapi::jiff::Timestamp::now()),
         ..Default::default()
     };
 

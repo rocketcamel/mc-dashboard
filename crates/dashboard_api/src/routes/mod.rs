@@ -4,3 +4,4 @@ pub mod get_backups;
 pub mod logs;
 pub mod status;
 pub mod sync_world;
+pub mod whitelist;
