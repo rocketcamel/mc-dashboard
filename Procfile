@@ -1,2 +1,2 @@
-api: cargo watch -x run
-frontend: cd frontend && bun dev
+api: cargo watch -x "run -p dashboard_api"
+frontend: just ui

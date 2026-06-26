@@ -16,23 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 type Player = {
   uuid: string;
   username: string;
-};
-
-const PLAYERS: Player[] = [
-  { uuid: "069a79f4-44e9-4726-a5be-fca90e38aaf5", username: "Notch" },
-  { uuid: "853c80ef-3c37-49fd-aa49-938b674adae6", username: "jeb_" },
-  { uuid: "8667ba71-b85a-4004-af54-457a9734eed7", username: "Steve" },
-  { uuid: "ec561538-f3fd-461d-aff5-086b22154bce", username: "Alex" },
-];
-
-type WhitelistResponse = {
-  username: string;
-  uuid: string;
 };
 
 function player_head(uuid: string) {
@@ -50,7 +39,7 @@ async function whitelist_push(username: string, world: World) {
   }
 }
 
-async function whitelist_get(world: World): Promise<WhitelistResponse[]> {
+async function whitelist_get(world: World): Promise<Player[]> {
   const response = await fetch(`/api/whitelist/get?world=${world}`);
 
   if (!response.ok) {
@@ -106,9 +95,15 @@ function WhitelistAdd({ onAdd }: { onAdd: (username: string) => void }) {
           className="text-zinc-100 placeholder:text-zinc-500"
         />
 
-        <Button type="submit" variant="outline" size="sm">
-          Add
-        </Button>
+        {adding ? (
+          <Button disabled variant="outline" size="sm">
+            Adding <Loader2 className="animate-spin" />
+          </Button>
+        ) : (
+          <Button type="submit" variant="outline" size="sm">
+            Add
+          </Button>
+        )}
       </div>
     </form>
   );

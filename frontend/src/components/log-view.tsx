@@ -12,18 +12,30 @@ import { SERVERS, useLogStream, type World } from "@/lib/world";
 
 export default function LogViewer() {
   const [selected, setSelected] = useState<World>("main");
-  const [autoScroll] = useState(true);
   const [logs] = useLogStream(selected);
   const viewport = useRef<HTMLDivElement>(null);
+  const [pinned, setPinned] = useState(true);
+
+  const scroll = () => {
+    if (!viewport.current) return;
+
+    const current = viewport.current;
+
+    const threshold = 24;
+    const bottom =
+      current.scrollHeight - current.scrollTop - current.clientHeight <
+      threshold;
+    setPinned(bottom);
+  };
 
   useEffect(() => {
-    if (autoScroll) {
+    if (pinned) {
       viewport.current.scrollTop = viewport.current.scrollHeight;
     }
-  }, [logs, autoScroll]);
+  }, [logs, pinned]);
 
   return (
-    <Card className="w-full">
+    <Card className="w-full mb-14">
       <CardHeader className="flex items-center justify-between space-y-0 pb-4 border-b">
         <CardTitle className="text-sm font-medium">Logs</CardTitle>
 
@@ -45,8 +57,12 @@ export default function LogViewer() {
       </CardHeader>
 
       <CardContent>
-        <ScrollArea className="h-100">
-          <div className="h-full" ref={viewport}>
+        <ScrollArea
+          className="h-100"
+          viewportRef={viewport}
+          onViewportScroll={scroll}
+        >
+          <div className="h-full">
             {logs.length === 0 && (
               <span className="text-muted-foreground">Waiting for logs...</span>
             )}
