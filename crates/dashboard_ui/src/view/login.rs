@@ -1,7 +1,7 @@
 use thiserror_ext::AsReport;
 use yew::{
-    AttrValue, Callback, Html, Properties, Reducible, component, html, platform::spawn_local,
-    use_reducer,
+    AttrValue, Callback, Html, Properties, Reducible, SubmitEvent, component, html,
+    platform::spawn_local, use_reducer,
 };
 use yew_router::hooks::use_navigator;
 
@@ -33,6 +33,7 @@ pub enum LoginAction {
     BlurUsername,
     BlurPassword,
 
+    SubmitAttempt,
     SubmitStarted,
     SubmitFailed(String),
     SubmitDone,
@@ -77,8 +78,8 @@ impl Reducible for LoginState {
             LoginAction::SetPassword(value) => next.password = value,
             LoginAction::BlurUsername => next.touched_username = true,
             LoginAction::BlurPassword => next.touched_password = true,
+            LoginAction::SubmitAttempt => next.submit_attempted = true,
             LoginAction::SubmitStarted => {
-                next.submit_attempted = true;
                 next.submitting = true;
                 next.error = None
             }
@@ -140,13 +141,15 @@ pub fn login() -> Html {
         let state = state.clone();
         let navigator = navigator.clone();
 
-        Callback::from(move |_| {
-            state.dispatch(LoginAction::SubmitStarted);
+        Callback::from(move |e: SubmitEvent| {
+            e.prevent_default();
+            state.dispatch(LoginAction::SubmitAttempt);
 
             if !state.can_submit() {
                 return;
             }
 
+            state.dispatch(LoginAction::SubmitStarted);
             spawn_local({
                 let state = state.clone();
                 let navigator = navigator.clone();
@@ -177,39 +180,41 @@ pub fn login() -> Html {
     };
 
     html! {
-        <div class="flex flex-col max-w-78 mx-auto mt-6 bg-card py-4 pb-0 gap-4">
-            <div class="px-4">
-                <p class="font-medium">{ "Login" }</p>
-                <p class="text-xs text-muted-foreground">{ "Enter username below" }</p>
-            </div>
+        <form onsubmit={on_submit}>
+            <div class="flex flex-col max-w-78 mx-auto mt-6 bg-card py-4 pb-0 gap-4">
+                <div class="px-4">
+                    <p class="font-medium">{ "Login" }</p>
+                    <p class="text-xs text-muted-foreground">{ "Enter username below" }</p>
+                </div>
 
-            <div class="flex flex-col gap-6 px-4">
-                <div class="space-y-1">
-                    <Field invalid={state.show_username_error()} on_update={on_username} name="username" label="Username" placeholder="mrfartshit" />
-                    if state.show_username_error() {
-                        <p class="text-xs text-red-500">{ state.username_error().unwrap_or_default() }</p>
+                <div class="flex flex-col gap-6 px-4">
+                    <div class="space-y-1">
+                        <Field invalid={state.show_username_error()} on_update={on_username} name="username" label="Username" placeholder="mrfartshit" />
+                        if state.show_username_error() {
+                            <p class="text-xs text-red-500">{ state.username_error().unwrap_or_default() }</p>
+                        }
+                    </div>
+
+                    <div class="space-y-1">
+                        <Field invalid={state.show_password_error()} on_update={on_password} name="password" label="Password" placeholder="Password" field_type="password" />
+                        if state.show_password_error() {
+                            <p class="text-xs text-red-500">{ state.password_error().unwrap_or_default() }</p>
+                        }
+                    </div>
+
+                    if let Some(error) = &state.error {
+                        <p class="text-xs text-red-500">{ error }</p>
                     }
                 </div>
 
-                <div class="space-y-1">
-                    <Field invalid={state.show_password_error()} on_update={on_password} name="password" label="Password" placeholder="Password" field_type="password" />
-                    if state.show_password_error() {
-                        <p class="text-xs text-red-500">{ state.password_error().unwrap_or_default() }</p>
+                <div class="flex items-center bg-secondary p-4 border-t">
+                    if state.submitting {
+                        <Button disabled={true} class="w-full py-0.5 flex justify-center"><Loader class="animate-spin" /></Button>
+                    } else {
+                        <Button button_type={"submit"} class="w-full py-0.5">{ "Login" }</Button>
                     }
                 </div>
-
-                if let Some(error) = &state.error {
-                    <p class="text-xs text-red-500">{ error }</p>
-                }
             </div>
-
-            <div class="flex items-center bg-secondary p-4 border-t">
-                if state.submitting {
-                    <Button class="w-full py-0.5 flex justify-center"><Loader class="animate-spin" /></Button>
-                } else {
-                    <Button onclick={on_submit} class="w-full py-0.5">{ "Login" }</Button>
-                }
-            </div>
-        </div>
+        </form>
     }
 }

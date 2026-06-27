@@ -15,7 +15,7 @@ pub enum LoginStatus {
 }
 
 pub async fn login(username: String, auth: String) -> Result<LoginStatus, NetError> {
-    let response = Request::get("/api/auth/login")
+    let response = Request::post("/api/auth/login")
         .credentials(RequestCredentials::Include)
         .header("Content-Type", "application/json")
         .body(serde_json::to_string(&LoginRequest { username, auth })?)?
@@ -25,6 +25,15 @@ pub async fn login(username: String, auth: String) -> Result<LoginStatus, NetErr
     match response.status() {
         200 => Ok(LoginStatus::Success(response.json().await?)),
         401 | 403 => Ok(LoginStatus::InvalidCredentials),
+        _ => Err(NetError::internal()),
+    }
+}
+
+pub async fn logout() -> Result<(), NetError> {
+    let response = Request::post("/api/auth/logout").send().await?;
+
+    match response.status() {
+        200 => Ok(()),
         _ => Err(NetError::internal()),
     }
 }
