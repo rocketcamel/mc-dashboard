@@ -1,4 +1,4 @@
-use yew::{Children, Classes, Html, Properties, classes, component, html};
+use yew::{Callback, Children, Classes, Html, MouseEvent, Properties, classes, component, html};
 
 #[derive(Properties, PartialEq)]
 pub struct ButtonProps {
@@ -6,10 +6,18 @@ pub struct ButtonProps {
     pub class: Classes,
     #[prop_or_default]
     pub children: Children,
+    #[prop_or_default]
+    pub onclick: Callback<MouseEvent>,
 }
 
 #[component(Button)]
-pub fn button(ButtonProps { class, children }: &ButtonProps) -> Html {
+pub fn button(
+    ButtonProps {
+        class,
+        children,
+        onclick,
+    }: &ButtonProps,
+) -> Html {
     let button_classes = classes!(
         "bg-primary",
         "text-primary-foreground",
@@ -25,7 +33,7 @@ pub fn button(ButtonProps { class, children }: &ButtonProps) -> Html {
     );
 
     html! {
-        <button type="button" class={button_classes}>
+        <button type="button" disabled={true} class={button_classes} {onclick}>
         { for children.iter() }
         </button>
     }

@@ -1,5 +1,5 @@
 use gloo::net::http::Request;
-use types::User;
+use types::{LoginRequest, User};
 use web_sys::RequestCredentials;
 
 use errors::NetError;
@@ -7,6 +7,26 @@ use errors::NetError;
 pub enum AuthStatus {
     Authenticated(User),
     Unauthenticated,
+}
+
+pub enum LoginStatus {
+    Success(User),
+    InvalidCredentials,
+}
+
+pub async fn login(username: String, auth: String) -> Result<LoginStatus, NetError> {
+    let response = Request::get("/api/auth/login")
+        .credentials(RequestCredentials::Include)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&LoginRequest { username, auth })?)?
+        .send()
+        .await?;
+
+    match response.status() {
+        200 => Ok(LoginStatus::Success(response.json().await?)),
+        401 | 403 => Ok(LoginStatus::InvalidCredentials),
+        _ => Err(NetError::internal()),
+    }
 }
 
 pub async fn get_auth_status() -> Result<AuthStatus, NetError> {

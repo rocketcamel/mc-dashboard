@@ -5,6 +5,8 @@ use yew::{AttrValue, Callback, Html, InputEvent, Properties, TargetCast, compone
 pub struct InputProps {
     #[prop_or_default]
     pub on_update: Callback<String>,
+    #[prop_or_default]
+    pub invalid: bool,
 
     #[prop_or_default]
     pub placeholder: AttrValue,
@@ -22,9 +24,18 @@ pub fn input(props: &InputProps) -> Html {
         })
     };
 
+    let input_classes = format!(
+        "w-full text-xs/relaxed h-7 border bg-input/20 px-2 py-0.5 rounded-md outline-none transition-colors {}",
+        if props.invalid {
+            "border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/30"
+        } else {
+            "border-input focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+        }
+    );
+
     html! {
-        <input class="w-full text-xs/relaxed h-7 border border-input bg-input/20 px-2 py-0.5 rounded-md
-               visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 outline-none transition-colors"
+        <input class={input_classes}
+               aria-invalid={props.invalid.to_string()}
                placeholder={&props.placeholder}
                type={&props.field_type}
                oninput={on_change}

@@ -1,18 +1,12 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State, response::IntoResponse};
-use serde::Deserialize;
 use tower_sessions::Session;
+use types::LoginRequest;
 
 use super::errors::AuthRouteError;
 
 use crate::AppState;
-
-#[derive(Deserialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub auth: String,
-}
 
 pub async fn login(
     State(app_state): State<Arc<AppState>>,
