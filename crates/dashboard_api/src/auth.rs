@@ -1,8 +1,8 @@
 use axum::extract::FromRequestParts;
 
 use errors::AuthError;
-use storage::User;
 use tower_sessions::Session;
+use types::User;
 
 pub struct AuthUser(pub User);
 

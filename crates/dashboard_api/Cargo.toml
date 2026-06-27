@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 dashboard_k3s = { path = "../dashboard_k3s" }
+types = { path = "../dashboard_types", package = "dashboard_types" }
 storage = { path = "../dashboard_storage", package = "dashboard_storage" }
 axum = { workspace = true }
 console = "0.16.3"

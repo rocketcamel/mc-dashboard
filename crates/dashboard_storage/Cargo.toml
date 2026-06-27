@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2024"
 
 [dependencies]
+types = { path = "../dashboard_types", package = "dashboard_types" }
 aws-sdk-dynamodb = { workspace = true }
 aws-config = "1.8.18"
 chrono = "0.4.45"

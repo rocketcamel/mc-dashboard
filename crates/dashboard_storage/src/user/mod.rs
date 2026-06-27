@@ -3,15 +3,11 @@ use std::collections::HashMap;
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier, password_hash::SaltString};
 use aws_sdk_dynamodb::{operation::put_item::PutItemError, types::AttributeValue};
 use serde::{Deserialize, Serialize};
+use types::User;
 
 use crate::Storage;
 
 pub use errors::{UserError, UserErrorKind};
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct User {
-    pub name: String,
-}
 
 #[derive(Serialize, Deserialize)]
 #[allow(unused)]

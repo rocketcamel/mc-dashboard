@@ -10,7 +10,7 @@ use openssh::{KnownHosts, Session};
 use serde::{Deserialize, Serialize};
 
 pub use backup::errors::StorageError;
-pub use user::{User, UserError, UserErrorKind};
+pub use user::{UserError, UserErrorKind};
 
 use crate::session::DynamoDBStore;
 
