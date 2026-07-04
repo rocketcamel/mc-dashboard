@@ -12,6 +12,8 @@ pub struct InputProps {
     pub placeholder: AttrValue,
     #[prop_or_default]
     pub field_type: AttrValue,
+    #[prop_or_default]
+    pub id: AttrValue,
 }
 
 #[component(Input)]
@@ -34,7 +36,7 @@ pub fn input(props: &InputProps) -> Html {
     );
 
     html! {
-        <input class={input_classes}
+        <input id={&props.id} class={input_classes}
                aria-invalid={props.invalid.to_string()}
                placeholder={&props.placeholder}
                type={&props.field_type}

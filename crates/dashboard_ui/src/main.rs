@@ -1,9 +1,13 @@
 mod components;
 mod icons;
 mod net;
+mod styles;
 mod view;
 
-use types::User;
+use tracing::Level;
+use tracing_subscriber::filter::Targets;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use yew::html::ChildrenProps;
 use yew::{
     Children, Html, Properties, component, html, platform::spawn_local, use_effect_with, use_state,
@@ -11,6 +15,7 @@ use yew::{
 
 use yew_router::{BrowserRouter, Routable, Switch, hooks::use_navigator};
 
+use crate::view::Index;
 use crate::{
     components::header::Header,
     net::{AuthStatus, get_auth_status},
@@ -36,19 +41,6 @@ struct LayoutProps {
 #[derive(Properties, PartialEq)]
 struct ProtectedProps {
     pub children: Children,
-}
-
-#[component(Index)]
-fn index() -> Html {
-    html! {
-        <div class="flex flex-col items-center max-w-334 mx-auto mt-6">
-          <h1 class="text-2xl font-semibold border-b-2 pb-1 px-6">
-            { "Management" }
-          </h1>
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 mb-10">
-          </div>
-        </div>
-    }
 }
 
 #[component(Layout)]
@@ -141,5 +133,13 @@ fn App() -> Html {
 }
 
 fn main() {
+    let tracing_wasm_layer = tracing_wasm::WASMLayer::new(tracing_wasm::WASMLayerConfig::default());
+    let filter = Targets::new().with_default(Level::INFO);
+
+    tracing_subscriber::registry()
+        .with(tracing_wasm_layer)
+        .with(filter)
+        .init();
+
     yew::Renderer::<App>::new().render();
 }

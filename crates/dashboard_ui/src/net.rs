@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use gloo::net::http::Request;
-use types::{LoginRequest, User};
+use types::{LoginRequest, ServerStatus, User};
 use web_sys::RequestCredentials;
 
-use errors::NetError;
+use errors::{NetError, NetErrorKind};
 
 pub enum AuthStatus {
     Authenticated(User),
@@ -14,6 +16,27 @@ pub enum LoginStatus {
     InvalidCredentials,
 }
 
+fn error_for_status(status: u16) -> Option<NetError> {
+    match status {
+        401 => Some(NetError::unauthenticated()),
+        403 => Some(NetError::forbidden()),
+        500..=599 => Some(NetError::internal()),
+        _ => None,
+    }
+}
+
+pub async fn world_status() -> Result<Vec<HashMap<String, ServerStatus>>, NetError> {
+    let response = Request::get("/api/world_status")
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(response.json().await?),
+    }
+}
+
 pub async fn login(username: String, auth: String) -> Result<LoginStatus, NetError> {
     let response = Request::post("/api/auth/login")
         .credentials(RequestCredentials::Include)
@@ -22,10 +45,15 @@ pub async fn login(username: String, auth: String) -> Result<LoginStatus, NetErr
         .send()
         .await?;
 
-    match response.status() {
-        200 => Ok(LoginStatus::Success(response.json().await?)),
-        401 | 403 => Ok(LoginStatus::InvalidCredentials),
-        _ => Err(NetError::internal()),
+    match error_for_status(response.status()) {
+        Some(err) => match err.inner() {
+            NetErrorKind::Unauthenticated | NetErrorKind::Forbidden => {
+                Ok(LoginStatus::InvalidCredentials)
+            }
+            _ => Err(err),
+        },
+
+        _ => Ok(LoginStatus::Success(response.json().await?)),
     }
 }
 
@@ -45,10 +73,15 @@ pub async fn get_auth_status() -> Result<AuthStatus, NetError> {
         .send()
         .await?;
 
-    match response.status() {
-        200 => Ok(AuthStatus::Authenticated(response.json().await?)),
-        401 | 403 => Ok(AuthStatus::Unauthenticated),
-        _ => Err(NetError::internal()),
+    match error_for_status(response.status()) {
+        Some(err) => match err.inner() {
+            NetErrorKind::Unauthenticated | NetErrorKind::Forbidden => {
+                Ok(AuthStatus::Unauthenticated)
+            }
+            _ => Err(err),
+        },
+
+        _ => Ok(AuthStatus::Authenticated(response.json().await?)),
     }
 }
 
@@ -63,6 +96,11 @@ pub mod errors {
         Network(#[from] gloo::net::Error),
         #[error("json error")]
         Json(#[from] serde_json::Error),
+        #[error("unauthenticated")]
+        Unauthenticated,
+        #[error("forbidden")]
+        Forbidden,
+
         #[error("internal server error")]
         Internal,
     }

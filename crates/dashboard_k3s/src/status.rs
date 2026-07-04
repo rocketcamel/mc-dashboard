@@ -1,20 +1,12 @@
 use std::{collections::HashMap, sync::Arc};
 
-use k8s_openapi::{api::apps::v1::Deployment, serde::Serialize};
+use k8s_openapi::api::apps::v1::Deployment;
 use kube::Api;
+use types::ServerStatus;
 
 use crate::Kubernetes;
 
 pub use errors::StatusError;
-
-#[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ServerStatus {
-    Starting,
-    Running,
-    Stopped,
-    Unknown,
-}
 
 pub async fn get_status(
     kubernetes: Arc<Kubernetes>,

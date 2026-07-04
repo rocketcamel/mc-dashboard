@@ -117,7 +117,7 @@ fn field(props: &FieldProps) -> Html {
                 { &props.label }
             </label>
 
-            <Input invalid={&props.invalid} on_update={&props.on_update} placeholder={&props.placeholder} field_type={&props.field_type} />
+            <Input id={props.name.clone()} invalid={&props.invalid} on_update={&props.on_update} placeholder={&props.placeholder} field_type={&props.field_type} />
         </div>
     }
 }

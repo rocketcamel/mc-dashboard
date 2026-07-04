@@ -4,6 +4,7 @@ version = "0.2.0"
 edition = "2024"
 
 [dependencies]
+types = { path = "../dashboard_types", package = "dashboard_types" }
 storage = { path = "../dashboard_storage", package = "dashboard_storage" }
 askama = "0.16.0"
 k8s-openapi = { version = "0.28.0", features = ["v1_36"] }
