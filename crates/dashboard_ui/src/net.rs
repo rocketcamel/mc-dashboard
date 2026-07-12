@@ -1,10 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
-use gloo::net::http::Request;
+use gloo::{net::http::Request, timers::callback::Interval};
 use types::{LoginRequest, ServerStatus, User};
-use web_sys::RequestCredentials;
+use web_sys::{RequestCredentials, js_sys::Date};
 
 use errors::{NetError, NetErrorKind};
+use yew::{
+    Callback, UseStateHandle, hook, platform::spawn_local, use_effect_with, use_mut_ref, use_state,
+};
 
 pub enum AuthStatus {
     Authenticated(User),
@@ -16,6 +19,146 @@ pub enum LoginStatus {
     InvalidCredentials,
 }
 
+#[derive(Clone, PartialEq)]
+pub struct QueryOptions {
+    pub stale_time: f64,
+    pub refetch_interval: u32,
+    pub enabled: bool,
+}
+
+impl Default for QueryOptions {
+    fn default() -> Self {
+        Self {
+            stale_time: 10000.0,
+            enabled: true,
+            refetch_interval: 10000,
+        }
+    }
+}
+
+pub struct QueryState<T, E> {
+    pub data: Option<Rc<T>>,
+    pub error: Option<Rc<E>>,
+    pub fetching: bool,
+    pub stale: bool,
+    pub last_fetched: Option<f64>,
+}
+
+impl<T, E> Clone for QueryState<T, E> {
+    fn clone(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            error: self.error.clone(),
+            fetching: self.fetching,
+            stale: self.stale,
+            last_fetched: self.last_fetched,
+        }
+    }
+}
+
+#[hook]
+pub fn use_query<T, E, F, Fut>(get: F, options: QueryOptions) -> UseStateHandle<QueryState<T, E>>
+where
+    T: 'static,
+    E: 'static,
+    F: Fn() -> Fut + 'static,
+    Fut: std::future::Future<Output = Result<T, E>> + 'static,
+{
+    let state = use_state(|| QueryState {
+        data: None,
+        error: None,
+        fetching: false,
+        stale: true,
+        last_fetched: None,
+    });
+
+    let fetching = use_mut_ref(|| false);
+    let get = Rc::new(get);
+
+    let fetch = Callback::from({
+        let state = state.clone();
+        let fetching = fetching.clone();
+        let get = get.clone();
+
+        move |_| {
+            if *fetching.borrow() {
+                return;
+            }
+            *fetching.borrow_mut() = true;
+
+            spawn_local({
+                let state = state.clone();
+                let fetching = fetching.clone();
+                let get = get.clone();
+
+                async move {
+                    state.set(QueryState {
+                        fetching: true,
+                        ..(*state).clone()
+                    });
+
+                    match get().await {
+                        Ok(data) => state.set(QueryState {
+                            data: Some(data.into()),
+                            error: None,
+                            fetching: false,
+                            stale: false,
+                            last_fetched: Some(Date::now()),
+                        }),
+                        Err(e) => state.set(QueryState {
+                            error: Some(e.into()),
+                            fetching: false,
+                            ..(*state).clone()
+                        }),
+                    }
+
+                    *fetching.borrow_mut() = false;
+                }
+            });
+        }
+    });
+
+    use_effect_with(options.enabled, {
+        let fetch = fetch.clone();
+        let state = state.clone();
+
+        move |_| {
+            if !options.enabled {
+                return;
+            }
+
+            let now = Date::now();
+            let stale = state
+                .last_fetched
+                .map(|t| now - t > options.stale_time)
+                .unwrap_or(true);
+
+            if stale {
+                fetch.emit(())
+            }
+        }
+    });
+
+    use_effect_with(options.enabled, {
+        let fetch = fetch.clone();
+        let state = state.clone();
+
+        move |_| {
+            let handle = if options.enabled {
+                Some(Interval::new(options.refetch_interval, move || {
+                    fetch.emit(())
+                }))
+            } else {
+                None
+            };
+
+            move || drop(handle)
+        }
+    });
+
+    return state;
+}
+
 fn error_for_status(status: u16) -> Option<NetError> {
     match status {
         401 => Some(NetError::unauthenticated()),
@@ -25,7 +168,7 @@ fn error_for_status(status: u16) -> Option<NetError> {
     }
 }
 
-pub async fn world_status() -> Result<Vec<HashMap<String, ServerStatus>>, NetError> {
+pub async fn world_status() -> Result<HashMap<String, ServerStatus>, NetError> {
     let response = Request::get("/api/world_status")
         .credentials(RequestCredentials::Include)
         .send()

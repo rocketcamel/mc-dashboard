@@ -1,3 +1,4 @@
+use tw_merge::tw_merge;
 use web_sys::HtmlInputElement;
 use yew::{AttrValue, Callback, Html, InputEvent, Properties, TargetCast, component, html};
 
@@ -14,6 +15,8 @@ pub struct InputProps {
     pub field_type: AttrValue,
     #[prop_or_default]
     pub id: AttrValue,
+    #[prop_or_default]
+    pub class: AttrValue,
 }
 
 #[component(Input)]
@@ -26,13 +29,14 @@ pub fn input(props: &InputProps) -> Html {
         })
     };
 
-    let input_classes = format!(
+    let input_classes = tw_merge!(
         "w-full text-xs/relaxed h-7 border bg-input/20 px-2 py-0.5 rounded-md outline-none transition-colors {}",
         if props.invalid {
             "border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/30"
         } else {
             "border-input focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-        }
+        },
+        props.class.to_string()
     );
 
     html! {

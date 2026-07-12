@@ -25,7 +25,7 @@ pub fn header() -> Html {
 
     let options = vec![DropdownItem {
         id: "logout",
-        label: "Logout",
+        label: "Logout".into(),
         icon: Some(html! { <LogOut class="h-4 w-4"/> }),
     }];
 
@@ -39,9 +39,9 @@ pub fn header() -> Html {
             <h1 class="text-xl font-bold">{ "mc-rocket-management" }</h1>
 
             <div class="rounded-full w-10 h-10 flex items-center justify-center bg-muted/50">
-                <Dropdown {update_selected} {options} label="mrfartshit">
+                <Dropdown<&'static str> {update_selected} {options} label="mrfartshit">
                     <User />
-                </Dropdown>
+                </Dropdown<&'static str>>
             </div>
 
             </div>

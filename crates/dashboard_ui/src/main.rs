@@ -1,7 +1,6 @@
 mod components;
 mod icons;
 mod net;
-mod styles;
 mod view;
 
 use tracing::Level;

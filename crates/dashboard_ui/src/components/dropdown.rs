@@ -6,23 +6,23 @@ use yew::{
 };
 
 #[derive(Clone, PartialEq)]
-pub struct DropdownItem {
-    pub id: &'static str,
-    pub label: &'static str,
+pub struct DropdownItem<T> {
+    pub id: T,
+    pub label: AttrValue,
     pub icon: Option<VNode>,
 }
 
 #[derive(Properties, PartialEq, Default)]
-pub struct DropdownProps {
+pub struct DropdownProps<T: PartialEq> {
     #[prop_or_default]
     pub children: Children,
     #[prop_or_default]
     pub label: Option<AttrValue>,
 
     #[prop_or_default]
-    pub options: Vec<DropdownItem>,
+    pub options: Vec<DropdownItem<T>>,
     #[prop_or_default]
-    pub update_selected: Callback<&'static str>,
+    pub update_selected: Callback<T>,
 }
 
 fn outside_click(
@@ -57,7 +57,7 @@ fn outside_click(
 }
 
 #[component(Dropdown)]
-pub fn dropdown(props: &DropdownProps) -> Html {
+pub fn dropdown<T: Clone + PartialEq + 'static>(props: &DropdownProps<T>) -> Html {
     let open = use_state(|| false);
     let trigger_ref = use_node_ref();
     let menu_ref = use_node_ref();
@@ -95,7 +95,7 @@ pub fn dropdown(props: &DropdownProps) -> Html {
     let menu_class = classes!(
         "absolute",
         "bg-primary-foreground",
-        "mt-2",
+        "mt-1",
         "min-w-32",
         "border",
         "p-1",
@@ -114,7 +114,7 @@ pub fn dropdown(props: &DropdownProps) -> Html {
                 ref={trigger_ref}
                 aria-haspopup="menu"
                 aria-expanded={open.to_string()}
-                class="m-0 p-2 flex h-full w-full"
+                class="m-0 p-1 flex h-full w-full"
             >
                 { for props.children.iter() }
             </button>
@@ -125,20 +125,23 @@ pub fn dropdown(props: &DropdownProps) -> Html {
                 }
 
                { for props.options.iter().map(|item| {
-                   let id = item.id;
-                   let open = open.clone();
                    let update_selected = props.update_selected.clone();
 
-                   let onclick = Callback::from(move |_| {
-                       update_selected.emit(id);
-                       open.set(false);
-                   });
+                   let onclick = Callback::from({
+                        let id = item.id.clone();
+                        let open = open.clone();
+
+                         move |_| {
+                            update_selected.emit(id.clone());
+                            open.set(false);
+                        }}
+                    );
 
                    html! {
                        <button type="button" {onclick} class="flex w-full rounded-md px-2.5 py-1.5 text-left text-sm
                                                               hover:bg-zinc-200 dark:hover:bg-accent mt-1"
                         >
-                        { item.label }
+                        { &item.label }
                         if let Some(icon) = &item.icon {
                             <span class="inline-flex ml-auto items-center">{ icon.clone() }</span>
                         }

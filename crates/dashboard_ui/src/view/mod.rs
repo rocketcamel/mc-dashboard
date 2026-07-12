@@ -1,8 +1,20 @@
-use yew::{Html, component, html};
+use types::{Server, ServerStatus};
+use yew::{Callback, Html, Properties, component, html, use_state};
 
-use crate::{components::display::button::Button, styles::merge_styles};
+use crate::{
+    components::{
+        display::{button::Button, input::Input},
+        dropdown::{Dropdown, DropdownItem},
+    },
+    net::{QueryOptions, use_query, world_status},
+};
 
 pub mod login;
+
+#[derive(Properties, PartialEq)]
+struct IndicatorProps {
+    status: ServerStatus,
+}
 
 fn player_head(uuid: &str) -> String {
     format!("https://mc-heads.net/avatar/{uuid}/100")
@@ -17,10 +29,26 @@ fn status_indicator() -> Html {
 
 #[component(Operations)]
 fn operations() -> Html {
-    let world_statuses = [
-        ("creative", "running", "bg-emerald-500/15 text-emerald-700"),
-        ("main", "running", "bg-emerald-500/15 text-emerald-700"),
-    ];
+    let query = use_query(world_status, QueryOptions::default());
+    let statuses = query.data.as_ref();
+
+    #[component(Indicator)]
+    fn indicator(IndicatorProps { status }: &IndicatorProps) -> Html {
+        match status {
+            ServerStatus::Running => html! {
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-green-500/15 text-green-400">{ status.to_string() }</span>
+            },
+            ServerStatus::Stopped => html! {
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ status.to_string() }</span>
+            },
+            ServerStatus::Starting => html! {
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-yellow-500 text-yellow-400 animate-pulse">{ status.to_string() }</span>
+            },
+            ServerStatus::Unknown => html! {
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ "Fetching..." }</span>
+            },
+        }
+    }
 
     html! {
         <section class="rounded-lg border bg-background p-4">
@@ -29,20 +57,23 @@ fn operations() -> Html {
             </div>
 
             <div class="space-y-3">
-                { for world_statuses.iter().map(|(world, status, classes)| html! {
-                    <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <span class="text-sm font-medium">{ *world }</span>
-                            <span class={format!("text-[11px] rounded-full px-2 py-0.5 {}", *classes)}>{ *status }</span>
-                        </div>
-
-                        if *world == "Creative" {
-                            <Button class="px-2 py-0.5 rounded-md">{ "Sync" }</Button>
-                        } else {
-                            <Button class="px-2 py-0.5 rounded-md">{ "Backup" }</Button>
-                        }
+                <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-sm font-medium">{ "main" }</span>
+                        <Indicator status={statuses.map(|s| (*s.get("main").unwrap()).clone()).unwrap_or(ServerStatus::Unknown)}/>
                     </div>
-                }) }
+
+                    <Button class="px-2 py-0.5 rounded-md">{ "Backup" }</Button>
+                </div>
+
+                <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-sm font-medium">{ "creative" }</span>
+                        <Indicator status={statuses.map(|s| (*s.get("creative").unwrap()).clone()).unwrap_or(ServerStatus::Unknown)}/>
+                    </div>
+
+                    <Button class="px-2 py-0.5 rounded-md">{ "Sync" }</Button>
+                </div>
             </div>
         </section>
     }
@@ -50,12 +81,6 @@ fn operations() -> Html {
 
 #[component(State)]
 fn state() -> Html {
-    let operation_feed = [
-        ("Backup main world", "2m ago"),
-        ("Creative quick sync", "11m ago"),
-        ("Whitelist update", "19m ago"),
-    ];
-
     html! {
         <section class="rounded-lg border bg-background p-4">
             <div class="flex items-center justify-between mb-3">
@@ -66,32 +91,23 @@ fn state() -> Html {
                 </span>
             </div>
 
-            <div class="grid grid-cols-2 gap-2 mb-3">
+            <div class="grid grid-cols-2 gap-2">
                 <div class="rounded-md border bg-card px-3 py-2">
-                    <p class="text-[11px] text-muted-foreground">{ "Last Sync" }</p>
-                    <p class="text-sm font-semibold">{ "11m" }</p>
+                    <p class="text-[11px] text-muted-foreground">{ "Main world backup" }</p>
+                    <p class="text-sm font-semibold">{ "11m ago" }</p>
                 </div>
                 <div class="rounded-md border bg-card px-3 py-2">
-                    <p class="text-[11px] text-muted-foreground">{ "Uptime" }</p>
-                    <p class="text-sm font-semibold">{ "03:42:10" }</p>
+                    <p class="text-[11px] text-muted-foreground">{ "Creative world sync" }</p>
+                    <p class="text-sm font-semibold">{ "15m ago" }</p>
                 </div>
-            </div>
-
-            <div class="rounded-md border bg-card p-3 space-y-2">
-                { for operation_feed.iter().map(|(label, when)| html! {
-                    <div class="flex items-center justify-between text-xs">
-                        <p class="font-medium">{ *label }</p>
-                        <p class="text-muted-foreground">{ *when }</p>
-                    </div>
-                }) }
             </div>
         </section>
 
     }
 }
 
-#[component(Index)]
-pub fn index() -> Html {
+#[component(Whitelist)]
+fn whitelist() -> Html {
     let whitelist_players = [
         ("069a79f4-44e9-4726-a5be-fca90e38aaf5", "Notch", "main"),
         (
@@ -101,16 +117,78 @@ pub fn index() -> Html {
         ),
     ];
 
-    let online_players = [
-        ("BuilderBee", "creative", "18m"),
-        ("RedstoneRex", "main", "42m"),
-        ("SkyCart", "creative", "7m"),
+    let options = vec![
+        DropdownItem {
+            id: Server::Main,
+            label: "main".into(),
+            icon: None,
+        },
+        DropdownItem {
+            id: Server::Creative,
+            label: "creative".into(),
+            icon: None,
+        },
     ];
 
-    let mut default_style = "bg-black font-medium text-white";
-    let mut merge_style = "bg-amber-500 font-regular";
+    let selected_world = use_state(|| "main");
 
-    merge_styles(default_style.as_bytes(), merge_style.as_bytes());
+    let update_selected = Callback::from({
+        let selected_world = selected_world.clone();
+
+        move |id: Server| match id {
+            Server::Main => selected_world.set("main"),
+            Server::Creative => selected_world.set("creative"),
+        }
+    });
+
+    html! {
+        <section class="lg:col-span-2 rounded-lg border bg-background p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "Whitelist" }</h2>
+
+                <div class="flex items-center gap-2">
+                    <Dropdown<Server> {options} {update_selected}>
+                        <span class="text-xs rounded-md border bg-card px-2 py-1.5">{ *selected_world }</span>
+                    </Dropdown<Server>>
+                    <Input
+                        field_type="text"
+                        placeholder="search player"
+                        class="text-xs rounded-md border bg-card px-2 py-1.5 w-36"
+                    />
+                </div>
+            </div>
+
+            <div class="max-h-72 overflow-y-auto space-y-2 pr-1">
+                { for whitelist_players.iter().map(|(uuid, username, world)| html! {
+                    <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <img src={player_head(uuid)} alt={format!("{} avatar", username)} class="h-9 w-9 rounded-sm border bg-muted object-cover" />
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium truncate">{ *username }</p>
+                                <p class="text-[11px] text-muted-foreground">{ format!("world: {}", world) }</p>
+                            </div>
+                        </div>
+
+                        <Button class="px-2 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90">{ "Remove" }</Button>
+                    </div>
+                }) }
+            </div>
+
+            <div class="mt-3 pt-3 border-t flex flex-col sm:flex-row gap-2">
+                <Input placeholder="add username" />
+                <Button class="px-3 py-1.5 rounded-md sm:w-auto w-full">{ "Add" }</Button>
+            </div>
+        </section>
+    }
+}
+
+#[component(Index)]
+pub fn index() -> Html {
+    let online_players = [
+        ("Notch", "creative"),
+        ("mrfartshit", "main"),
+        ("thedarkknight15963", "creative"),
+    ];
 
     html! {
         <div class="w-full max-w-6xl mx-auto px-4 pb-10">
@@ -120,63 +198,26 @@ pub fn index() -> Html {
                     <p class="text-xs/relaxed font-medium text-muted-foreground mt-1">{ "Minecraft Server Console" }</p>
                 </div>
 
-                <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div class="p-6 grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
                     <Operations />
                     <State />
                </div>
 
                 <div class="px-6 pb-6 grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <section class="lg:col-span-2 rounded-lg border bg-background p-4">
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "Whitelist Manager" }</h2>
-
-                            <div class="flex items-center gap-2">
-                                <select class="text-xs rounded-md border bg-card px-2 py-1.5">
-                                    <option value="main">{ "Main" }</option>
-                                    <option value="creative">{ "Creative" }</option>
-                                </select>
-                                <input
-                                    type="text"
-                                    placeholder="Search player"
-                                    class="text-xs rounded-md border bg-card px-2 py-1.5 w-36"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="max-h-72 overflow-y-auto space-y-2 pr-1">
-                            { for whitelist_players.iter().map(|(uuid, username, world)| html! {
-                                <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
-                                    <div class="flex items-center gap-3 min-w-0">
-                                        <img src={player_head(uuid)} alt={format!("{} avatar", username)} class="h-9 w-9 rounded-sm border bg-muted object-cover" />
-                                        <div class="min-w-0">
-                                            <p class="text-sm font-medium truncate">{ *username }</p>
-                                            <p class="text-[11px] text-muted-foreground">{ format!("World: {}", world) }</p>
-                                        </div>
-                                    </div>
-
-                                    <Button class="px-2 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90">{ "Remove" }</Button>
-                                </div>
-                            }) }
-                        </div>
-
-                        <div class="mt-3 pt-3 border-t flex flex-col sm:flex-row gap-2">
-                            <input type="text" placeholder="Add username" class="text-xs rounded-md border bg-card px-2 py-1.5 flex-1" />
-                            <Button class="px-3 py-1.5 rounded-md sm:w-auto w-full">{ "Add To Whitelist" }</Button>
-                        </div>
-                    </section>
+                    <Whitelist />
 
                     <section class="rounded-lg border bg-background p-4">
                         <div class="flex items-center justify-between mb-3">
-                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "Online Now" }</h2>
-                            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700">{ "3 Players" }</span>
+                            <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "Online" }</h2>
+                            <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700">{ "2 Players" }</span>
                         </div>
 
                         <div class="space-y-2">
-                            { for online_players.iter().map(|(username, world, duration)| html! {
+                            { for online_players.iter().map(|(username, world)| html! {
                                 <div class="rounded-md border bg-card px-3 py-2">
                                     <div class="flex items-center justify-between gap-2">
                                         <p class="text-sm font-medium truncate">{ *username }</p>
-                                        <p class="text-[11px] text-muted-foreground">{ format!("{} online", duration) }</p>
+                                        // <p class="text-[11px] text-muted-foreground">{ format!("{} online", duration) }</p>
                                     </div>
                                     <p class="text-[11px] text-muted-foreground mt-1">{ format!("World: {}", world) }</p>
                                 </div>

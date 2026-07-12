@@ -18,7 +18,7 @@ pub struct Environment {
     pub table_name: String,
 }
 
-pub const OPERATION_TIMEOUT: u64 = 250;
+pub const OPERATION_TIMEOUT: u64 = 500;
 pub const NAMESPACE_NAME: &'static str = "minecraft";
 
 pub struct Storage {

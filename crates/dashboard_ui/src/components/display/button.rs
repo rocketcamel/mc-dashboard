@@ -1,3 +1,4 @@
+use tw_merge::tw_merge;
 use yew::{Callback, Children, Classes, Html, MouseEvent, Properties, component, html};
 
 #[derive(Properties, PartialEq)]
@@ -25,7 +26,7 @@ pub fn button(
         disabled,
     }: &ButtonProps,
 ) -> Html {
-    let button_classes = format!(
+    let button_classes = tw_merge!(
         "bg-primary text-primary-foreground font-medium text-xs/relaxed hover:bg-primary/80 transition-colors transition-transform duration-100 active:translate-y-px active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none {}",
         class.to_string(),
     );
