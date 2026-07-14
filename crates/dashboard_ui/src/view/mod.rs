@@ -1,12 +1,15 @@
-use types::{Server, ServerStatus};
-use yew::{Callback, Html, Properties, component, html, use_state};
+use types::{Backup, Server, ServerStatus};
+use web_sys::js_sys::Date;
+use yew::{Callback, Html, Properties, component, html, platform::spawn_local, use_state};
 
 use crate::{
     components::{
         display::{button::Button, input::Input},
         dropdown::{Dropdown, DropdownItem},
+        modal::Modal,
     },
-    net::{QueryOptions, use_query, world_status},
+    icons::Loader,
+    net::{QueryOptions, get_backups, use_query, world_status},
 };
 
 pub mod login;
@@ -27,6 +30,46 @@ fn status_indicator() -> Html {
     }
 }
 
+fn format_bytes(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    const MB: f64 = KB * 1024.0;
+    const GB: f64 = MB * 1024.0;
+
+    let b = bytes as f64;
+
+    if b >= GB {
+        format!("{:.1}G", b / GB)
+    } else if b >= MB {
+        format!("{:.1}MB", b / MB)
+    } else if b >= KB {
+        format!("{:.1}KB", b / KB)
+    } else {
+        format!("{bytes}B")
+    }
+}
+
+fn format_date(iso: &str) -> String {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+
+    let date = Date::new(&iso.into());
+    let month = MONTHS[date.get_month() as usize];
+    let day = date.get_day();
+
+    let hours = date.get_hours();
+    let minutes = date.get_minutes();
+
+    let (hour_12, suffix) = match hours {
+        0 => (12, "AM"),
+        1..=11 => (hours, "AM"),
+        12 => (12, "PM"),
+        _ => (hours - 12, "PM"),
+    };
+
+    format!("{month} {day}, {hour_12}:{minutes:02} {suffix}")
+}
+
 #[component(Operations)]
 fn operations() -> Html {
     let query = use_query(world_status, QueryOptions::default());
@@ -36,17 +79,83 @@ fn operations() -> Html {
     fn indicator(IndicatorProps { status }: &IndicatorProps) -> Html {
         match status {
             ServerStatus::Running => html! {
-                <span class="text-[11px] rounded-full px-2 py-0.5 bg-green-500/15 text-green-400">{ status.to_string() }</span>
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-green-500/15 text-green-400">{ "Running" }</span>
             },
             ServerStatus::Stopped => html! {
-                <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ status.to_string() }</span>
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ "Stopped" }</span>
             },
             ServerStatus::Starting => html! {
-                <span class="text-[11px] rounded-full px-2 py-0.5 bg-yellow-500 text-yellow-400 animate-pulse">{ status.to_string() }</span>
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-yellow-500 text-yellow-400 animate-pulse">{ "Starting" }</span>
             },
             ServerStatus::Unknown => html! {
                 <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ "Fetching..." }</span>
             },
+        }
+    }
+
+    #[component(Backup)]
+    fn backup() -> Html {
+        let backups_query = use_query(
+            get_backups,
+            QueryOptions {
+                enabled: true,
+                refetch_interval: 20000,
+                stale_time: 20000.0,
+            },
+        );
+        let selected_backup = use_state::<Option<types::Backup>, _>(|| None);
+        let open = use_state(|| false);
+
+        let Some(data) = backups_query.data.as_ref() else {
+            return html! {
+                <Button disabled={true} class="px-2 py-0.5 rounded-md"><Loader class="animate-spin" /></Button>
+            };
+        };
+
+        let options: Vec<DropdownItem<String>> = data
+            .iter()
+            .map(|b| DropdownItem {
+                id: b.filename.clone(),
+                content: html! { { format!("{} - {}", format_date(&b.date), format_bytes(b.bytes)) } },
+            })
+            .collect();
+
+        let update_selected = Callback::from({
+            let selected_backup = selected_backup.clone();
+            let open = open.clone();
+            let data = data.clone();
+
+            move |id: String| {
+                let selection = data.iter().find(|b| b.filename == id).cloned();
+                selected_backup.set(selection);
+                open.set(true)
+            }
+        });
+
+        let on_cancel = Callback::from({
+            let open = open.clone();
+            move |_| open.set(false)
+        });
+
+        let on_closed = Callback::from({
+            let selected_backup = selected_backup.clone();
+            move |_| selected_backup.set(None)
+        });
+
+        html! {
+            <>
+            <Modal
+                title="World Backup"
+                open={*open}
+                message={selected_backup.as_ref().map(|b| format!("Backup main world at {}? ({})", format_date(&b.date), format_bytes(b.bytes))).unwrap_or("Select a backup".to_string())}
+                {on_cancel}
+                {on_closed}
+            />
+
+            <Dropdown<String> {options} {update_selected} item_class="text-xs text-nowrap">
+                <Button class="px-2 py-0.5 rounded-md">{ "Backup" }</Button>
+            </Dropdown<String>>
+            </>
         }
     }
 
@@ -63,7 +172,7 @@ fn operations() -> Html {
                         <Indicator status={statuses.map(|s| (*s.get("main").unwrap()).clone()).unwrap_or(ServerStatus::Unknown)}/>
                     </div>
 
-                    <Button class="px-2 py-0.5 rounded-md">{ "Backup" }</Button>
+                    <Backup />
                 </div>
 
                 <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
@@ -120,13 +229,11 @@ fn whitelist() -> Html {
     let options = vec![
         DropdownItem {
             id: Server::Main,
-            label: "main".into(),
-            icon: None,
+            content: html! { { "main" } },
         },
         DropdownItem {
             id: Server::Creative,
-            label: "creative".into(),
-            icon: None,
+            content: html! { { "creative" } },
         },
     ];
 

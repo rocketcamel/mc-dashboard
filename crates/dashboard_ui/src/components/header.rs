@@ -25,8 +25,12 @@ pub fn header() -> Html {
 
     let options = vec![DropdownItem {
         id: "logout",
-        label: "Logout".into(),
-        icon: Some(html! { <LogOut class="h-4 w-4"/> }),
+        content: html! {
+            <div class="flex justify-between">
+                <span> { "Logout" }</span>
+                <span class="inline-flex ml-auto items-center"><LogOut  class="h-4 w-4" /></span>
+            </div>
+        },
     }];
 
     let update_selected = Callback::from(move |id: &'static str| match id {

@@ -13,6 +13,13 @@ pub struct LoginRequest {
     pub auth: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
+pub struct Backup {
+    pub filename: String,
+    pub bytes: u64,
+    pub date: String,
+}
+
 #[derive(Serialize, Deserialize, PartialEq, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum ServerStatus {

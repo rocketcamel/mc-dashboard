@@ -28,13 +28,6 @@ pub struct Storage {
     pub environment: Arc<Environment>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
-pub struct Backup {
-    pub filename: String,
-    pub bytes: u64,
-    pub date: String,
-}
-
 #[derive(Deserialize, Clone)]
 #[serde(rename_all = "lowercase")]
 pub enum World {

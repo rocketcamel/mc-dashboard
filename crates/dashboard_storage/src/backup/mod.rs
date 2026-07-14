@@ -1,8 +1,9 @@
 use aws_sdk_dynamodb::{operation::put_item::PutItemError, types::AttributeValue};
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use types::Backup;
 
-use crate::{Backup, Storage};
+use crate::Storage;
 use errors::StorageError;
 
 #[derive(Serialize, Deserialize)]

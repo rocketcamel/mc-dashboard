@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use gloo::{net::http::Request, timers::callback::Interval};
-use types::{LoginRequest, ServerStatus, User};
+use types::{Backup, LoginRequest, ServerStatus, User};
 use web_sys::{RequestCredentials, js_sys::Date};
 
 use errors::{NetError, NetErrorKind};
@@ -141,8 +141,6 @@ where
 
     use_effect_with(options.enabled, {
         let fetch = fetch.clone();
-        let state = state.clone();
-
         move |_| {
             let handle = if options.enabled {
                 Some(Interval::new(options.refetch_interval, move || {
@@ -165,6 +163,18 @@ fn error_for_status(status: u16) -> Option<NetError> {
         403 => Some(NetError::forbidden()),
         500..=599 => Some(NetError::internal()),
         _ => None,
+    }
+}
+
+pub async fn get_backups() -> Result<Vec<Backup>, NetError> {
+    let response = Request::get("/api/backups")
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(response.json().await?),
     }
 }
 

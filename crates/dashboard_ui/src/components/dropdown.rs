@@ -1,4 +1,5 @@
 use gloo::events::EventListener;
+use tw_merge::tw_merge;
 use web_sys::{Node, wasm_bindgen::JsCast, window};
 use yew::{
     AttrValue, Callback, Children, Html, NodeRef, Properties, UseStateHandle, classes, component,
@@ -8,8 +9,7 @@ use yew::{
 #[derive(Clone, PartialEq)]
 pub struct DropdownItem<T> {
     pub id: T,
-    pub label: AttrValue,
-    pub icon: Option<VNode>,
+    pub content: Html,
 }
 
 #[derive(Properties, PartialEq, Default)]
@@ -18,6 +18,8 @@ pub struct DropdownProps<T: PartialEq> {
     pub children: Children,
     #[prop_or_default]
     pub label: Option<AttrValue>,
+    #[prop_or_default]
+    pub item_class: AttrValue,
 
     #[prop_or_default]
     pub options: Vec<DropdownItem<T>>,
@@ -94,6 +96,8 @@ pub fn dropdown<T: Clone + PartialEq + 'static>(props: &DropdownProps<T>) -> Htm
 
     let menu_class = classes!(
         "absolute",
+        "overflow-y-auto",
+        "max-h-72",
         "bg-primary-foreground",
         "mt-1",
         "min-w-32",
@@ -138,13 +142,10 @@ pub fn dropdown<T: Clone + PartialEq + 'static>(props: &DropdownProps<T>) -> Htm
                     );
 
                    html! {
-                       <button type="button" {onclick} class="flex w-full rounded-md px-2.5 py-1.5 text-left text-sm
-                                                              hover:bg-zinc-200 dark:hover:bg-accent mt-1"
+                       <button type="button" {onclick} class={tw_merge!("flex w-full rounded-md px-2.5 py-1.5 text-left text-sm
+                                                              hover:bg-zinc-200 dark:hover:bg-accent mt-1", props.item_class.to_string())}
                         >
-                        { &item.label }
-                        if let Some(icon) = &item.icon {
-                            <span class="inline-flex ml-auto items-center">{ icon.clone() }</span>
-                        }
+                        { item.content.clone() }
                        </button>
                    }
                })}

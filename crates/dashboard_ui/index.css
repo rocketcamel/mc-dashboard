@@ -2,6 +2,54 @@
 @import "tailwindcss";
 @source "src/**/*.rs";
 
+@keyframes modal-in {
+    from {
+        opacity: 0;
+        transform: translateY(0.25rem) scale(0.96);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes modal-out {
+    from {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
+    to {
+        opacity: 0;
+        transform: translateY(0.25rem) scale(0.96);
+    }
+}
+
+@keyframes backdrop-in {
+    from {
+        opacity: 0;
+        backdrop-filter: blur(0);
+    }
+
+    to {
+        opacity: 1;
+        backdrop-filter: blur(1px);
+    }
+}
+
+@keyframes backdrop-out {
+    from {
+        opacity: 1;
+        backdrop-filter: blur(1px);
+    }
+
+    to {
+        opacity: 0;
+        backdrop-filter: blur(0);
+    }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
