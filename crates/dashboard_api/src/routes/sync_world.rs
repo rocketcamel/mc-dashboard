@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{Json, extract::State, response::IntoResponse};
 use serde::Deserialize;
-use storage::World;
+use types::World;
 
 use crate::{AppState, auth::AuthUser, error::Result};
 

@@ -6,9 +6,9 @@ use axum::{
     response::IntoResponse,
 };
 use serde::Deserialize;
-use storage::World;
 
 use dashboard_k3s::restore::backup_world as backup_world_k3s;
+use types::World;
 
 use crate::{
     AppState,
@@ -48,10 +48,14 @@ where
         state: &S,
     ) -> std::result::Result<Self, Self::Rejection> {
         let app_state = Arc::<AppState>::from_ref(state);
-        let Json(body): Json<BackupRequest> = Json::from_request(req, state)
-            .await
-            .map_err(|_| Error::forbidden())?;
+        let Json(body): Json<BackupRequest> =
+            Json::from_request(req, state).await.map_err(|e| {
+                tracing::error!("bad request: {e}");
+                Error::bad_request()
+            })?;
+
         let backups = app_state.storage.get_backups().await?;
+
         if !backups.iter().any(|b| b.filename == body.backup_file_name)
             && body.backup_file_name != "latest.tar.gz"
         {

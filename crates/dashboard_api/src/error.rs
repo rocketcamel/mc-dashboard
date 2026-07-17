@@ -19,6 +19,8 @@ pub enum ErrorKind {
     Forbidden,
     #[error("resource not found")]
     NotFound,
+    #[error("bad request")]
+    BadRequest,
     #[error("internal error: {0}")]
     Internal(String),
 
@@ -37,6 +39,7 @@ impl IntoResponse for Error {
         match self.inner() {
             ErrorKind::Forbidden => StatusCode::FORBIDDEN.into_response(),
             ErrorKind::NotFound => StatusCode::NOT_FOUND.into_response(),
+            ErrorKind::BadRequest => StatusCode::BAD_REQUEST.into_response(),
 
             ErrorKind::User(error) => match error.inner() {
                 UserErrorKind::InvalidCredentials => StatusCode::FORBIDDEN.into_response(),

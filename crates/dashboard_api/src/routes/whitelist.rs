@@ -9,7 +9,7 @@ use axum::{
 
 pub use errors::WhitelistRouteError;
 use serde::Deserialize;
-use storage::World;
+use types::World;
 
 use crate::{AppState, auth::AuthUser};
 

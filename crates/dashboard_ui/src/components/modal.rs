@@ -2,7 +2,8 @@ use std::rc::Rc;
 
 use tw_merge::tw_merge;
 use yew::{
-    AttrValue, Callback, Html, Properties, Reducible, component, html, use_effect_with, use_reducer,
+    AttrValue, Callback, Html, MouseEvent, Properties, Reducible, component, html, use_effect_with,
+    use_reducer,
 };
 
 use super::display::button::Button;
@@ -51,15 +52,19 @@ pub struct ModalProps {
     #[prop_or_default]
     pub on_cancel: Callback<()>,
     #[prop_or_default]
+    pub on_confirm: Callback<()>,
+    #[prop_or_default]
     pub on_closed: Callback<()>,
+}
+
+fn prop_emit_unit(prop: Callback<()>) -> Callback<MouseEvent> {
+    Callback::from(move |_| prop.emit(()))
 }
 
 #[component(Modal)]
 pub fn modal(props: &ModalProps) -> Html {
-    let cancel = Callback::from({
-        let on_cancel = props.on_cancel.clone();
-        move |_| on_cancel.emit(())
-    });
+    let cancel = prop_emit_unit(props.on_cancel.clone());
+    let confirm = prop_emit_unit(props.on_confirm.clone());
 
     let state = use_reducer(|| {
         if props.open {
@@ -136,7 +141,7 @@ pub fn modal(props: &ModalProps) -> Html {
 
                 <div class="mt-4 flex justify-end gap-2">
                     <Button onclick={cancel} class="p-0.5 rounded-sm">{ "Cancel" }</Button>
-                    <Button class="p-0.5 rounded-sm">{ "Confirm" }</Button>
+                    <Button onclick={confirm} class="p-0.5 rounded-sm">{ "Confirm" }</Button>
                 </div>
             </div>
         </div>

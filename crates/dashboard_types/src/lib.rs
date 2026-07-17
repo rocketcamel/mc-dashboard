@@ -13,6 +13,37 @@ pub struct LoginRequest {
     pub auth: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct BackupRequest {
+    pub server_name: World,
+    pub backup_file_name: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum World {
+    Main,
+    Creative,
+}
+
+impl AsRef<str> for World {
+    fn as_ref(&self) -> &str {
+        match self {
+            Self::Main => "main",
+            Self::Creative => "creative",
+        }
+    }
+}
+
+impl Display for World {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Main => write!(f, "main"),
+            Self::Creative => write!(f, "creative"),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 pub struct Backup {
     pub filename: String,

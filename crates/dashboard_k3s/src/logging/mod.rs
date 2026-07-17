@@ -7,13 +7,12 @@ use kube::{
     api::{ListParams, LogParams},
 };
 use serde::Serialize;
-use storage::{NAMESPACE_NAME, World};
+use storage::NAMESPACE_NAME;
 
 pub use errors::LoggingError;
+use types::World;
 
 use crate::Kubernetes;
-
-type Cursor = usize;
 
 pub type LogStream = Pin<Box<dyn Stream<Item = Result<LogMessage, LoggingError>> + Send>>;
 

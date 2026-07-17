@@ -11,9 +11,10 @@ use kube::{
     },
 };
 use serde_json::json;
-use storage::{NAMESPACE_NAME, OPERATION_TIMEOUT, Storage, World};
+use storage::{NAMESPACE_NAME, OPERATION_TIMEOUT, Storage};
 
 use errors::KubernetesError;
+use types::World;
 
 use crate::{BackupJob, Kubernetes, SyncJob};
 

@@ -3,7 +3,7 @@ use tw_merge::tw_merge;
 use web_sys::{Node, wasm_bindgen::JsCast, window};
 use yew::{
     AttrValue, Callback, Children, Html, NodeRef, Properties, UseStateHandle, classes, component,
-    html, use_effect_with, use_node_ref, use_state, virtual_dom::VNode,
+    html, use_effect_with, use_node_ref, use_state,
 };
 
 #[derive(Clone, PartialEq)]

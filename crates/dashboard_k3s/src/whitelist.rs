@@ -6,10 +6,11 @@ use kube::{
     api::{AttachParams, AttachedProcess, ListParams},
 };
 use serde::{Deserialize, Serialize};
-use storage::{NAMESPACE_NAME, World};
+use storage::NAMESPACE_NAME;
 
 pub use errors::WhitelistError;
 use tokio::io::AsyncReadExt;
+use types::World;
 
 use crate::Kubernetes;
 

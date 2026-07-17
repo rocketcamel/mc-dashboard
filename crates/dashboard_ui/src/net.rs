@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use gloo::{net::http::Request, timers::callback::Interval};
-use types::{Backup, LoginRequest, ServerStatus, User};
+use types::{Backup, BackupRequest, LoginRequest, ServerStatus, User, World};
 use web_sys::{RequestCredentials, js_sys::Date};
 
 use errors::{NetError, NetErrorKind};
@@ -161,8 +161,26 @@ fn error_for_status(status: u16) -> Option<NetError> {
     match status {
         401 => Some(NetError::unauthenticated()),
         403 => Some(NetError::forbidden()),
+        404 => Some(NetError::not_found()),
         500..=599 => Some(NetError::internal()),
         _ => None,
+    }
+}
+
+pub async fn backup_world(server_name: World, backup_file_name: String) -> Result<(), NetError> {
+    let response = Request::post("/api/backup_world")
+        .credentials(RequestCredentials::Include)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&BackupRequest {
+            server_name,
+            backup_file_name,
+        })?)?
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(()),
     }
 }
 
@@ -253,6 +271,8 @@ pub mod errors {
         Unauthenticated,
         #[error("forbidden")]
         Forbidden,
+        #[error("not found")]
+        NotFound,
 
         #[error("internal server error")]
         Internal,

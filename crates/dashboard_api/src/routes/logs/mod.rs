@@ -14,10 +14,10 @@ use dashboard_k3s::logging::{
 };
 use futures::TryStreamExt;
 use serde::Deserialize;
-use storage::World;
 use thiserror_ext::AsReport;
 
 use errors::StreamLogsError;
+use types::World;
 
 use crate::{AppState, auth::AuthUser, routes::logs::errors::StreamLogsErrorKind};
 

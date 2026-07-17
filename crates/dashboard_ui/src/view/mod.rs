@@ -1,6 +1,11 @@
-use types::{Backup, Server, ServerStatus};
+use gloo::timers::callback::Timeout;
+use thiserror_ext::AsReport;
+use types::{Server, ServerStatus, World};
 use web_sys::js_sys::Date;
-use yew::{Callback, Html, Properties, component, html, platform::spawn_local, use_state};
+use yew::{
+    Callback, Html, Properties, Reducible, component, html, platform::spawn_local, use_reducer,
+    use_state,
+};
 
 use crate::{
     components::{
@@ -9,7 +14,7 @@ use crate::{
         modal::Modal,
     },
     icons::Loader,
-    net::{QueryOptions, get_backups, use_query, world_status},
+    net::{QueryOptions, backup_world, get_backups, use_query, world_status},
 };
 
 pub mod login;
@@ -17,6 +22,37 @@ pub mod login;
 #[derive(Properties, PartialEq)]
 struct IndicatorProps {
     status: ServerStatus,
+}
+
+#[derive(Clone)]
+enum BackupAction {
+    Idle,
+    StartBackup,
+    Success,
+    Error(String),
+}
+
+#[derive(Clone)]
+struct BackupState {
+    generation: u32,
+    current: BackupAction,
+}
+
+impl Reducible for BackupState {
+    type Action = BackupAction;
+
+    fn reduce(self: std::rc::Rc<Self>, action: Self::Action) -> std::rc::Rc<Self> {
+        let mut next = (*self).clone();
+
+        match action {
+            BackupAction::StartBackup => next.generation += 1,
+            BackupAction::Success => next.current = BackupAction::Success,
+            BackupAction::Idle => next.current = BackupAction::Idle,
+            BackupAction::Error(e) => next.current = BackupAction::Error(e),
+        };
+
+        next.into()
+    }
 }
 
 fn player_head(uuid: &str) -> String {
@@ -55,7 +91,7 @@ fn format_date(iso: &str) -> String {
 
     let date = Date::new(&iso.into());
     let month = MONTHS[date.get_month() as usize];
-    let day = date.get_day();
+    let day = date.get_date();
 
     let hours = date.get_hours();
     let minutes = date.get_minutes();
@@ -103,13 +139,28 @@ fn operations() -> Html {
                 stale_time: 20000.0,
             },
         );
+        let state = use_reducer(|| BackupState {
+            generation: 0,
+            current: BackupAction::Idle,
+        });
+
         let selected_backup = use_state::<Option<types::Backup>, _>(|| None);
         let open = use_state(|| false);
 
+        fn error_state() -> Html {
+            html! { <Button disabled={true} class="px-2 py-0.5 rounded-md bg-destructive">{ "Error getting backups" }</Button> }
+        }
+
+        fn loading_state() -> Html {
+            html! { <Button disabled={true} class="px-2 py-0.5 rounded-md bg-muted-foreground"><Loader class="animate-spin" /></Button> }
+        }
+
+        if backups_query.error.is_some() {
+            return error_state();
+        }
+
         let Some(data) = backups_query.data.as_ref() else {
-            return html! {
-                <Button disabled={true} class="px-2 py-0.5 rounded-md"><Loader class="animate-spin" /></Button>
-            };
+            return loading_state();
         };
 
         let options: Vec<DropdownItem<String>> = data
@@ -137,6 +188,48 @@ fn operations() -> Html {
             move |_| open.set(false)
         });
 
+        let on_confirm = Callback::from({
+            let open = open.clone();
+            let selected_backup = selected_backup.clone();
+            let state = state.clone();
+
+            move |_| {
+                open.set(false);
+
+                spawn_local({
+                    let selected_backup = selected_backup.clone();
+                    let state = state.clone();
+                    async move {
+                        let generation = state.generation;
+                        state.dispatch(BackupAction::StartBackup);
+
+                        let result = backup_world(
+                            World::Main,
+                            selected_backup.as_ref().unwrap().filename.clone(),
+                        )
+                        .await;
+
+                        match result {
+                            Ok(_) => {
+                                state.dispatch(BackupAction::Success);
+                                Timeout::new(1000, move || {
+                                    if state.generation != generation {
+                                        return;
+                                    }
+
+                                    state.dispatch(BackupAction::Idle)
+                                })
+                                .forget();
+                            }
+                            Err(e) => {
+                                state.dispatch(BackupAction::Error(e.as_report().to_string()))
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
         let on_closed = Callback::from({
             let selected_backup = selected_backup.clone();
             move |_| selected_backup.set(None)
@@ -149,6 +242,7 @@ fn operations() -> Html {
                 open={*open}
                 message={selected_backup.as_ref().map(|b| format!("Backup main world at {}? ({})", format_date(&b.date), format_bytes(b.bytes))).unwrap_or("Select a backup".to_string())}
                 {on_cancel}
+                {on_confirm}
                 {on_closed}
             />
 
