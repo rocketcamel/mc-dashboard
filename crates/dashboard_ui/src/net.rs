@@ -1,7 +1,7 @@
 use std::{collections::HashMap, rc::Rc};
 
 use gloo::{net::http::Request, timers::callback::Interval};
-use types::{Backup, BackupRequest, LoginRequest, ServerStatus, User, World};
+use types::{Backup, BackupRequest, LoginRequest, ServerStatus, StatusResponse, User, World};
 use web_sys::{RequestCredentials, js_sys::Date};
 
 use errors::{NetError, NetErrorKind};
@@ -186,6 +186,18 @@ pub async fn backup_world(server_name: World, backup_file_name: String) -> Resul
 
 pub async fn get_backups() -> Result<Vec<Backup>, NetError> {
     let response = Request::get("/api/backups")
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(response.json().await?),
+    }
+}
+
+pub async fn backup_status() -> Result<StatusResponse, NetError> {
+    let response = Request::get("/api/status")
         .credentials(RequestCredentials::Include)
         .send()
         .await?;

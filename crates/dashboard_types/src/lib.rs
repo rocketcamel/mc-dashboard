@@ -19,6 +19,11 @@ pub struct BackupRequest {
     pub backup_file_name: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct StatusResponse {
+    pub backing_up: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub enum World {

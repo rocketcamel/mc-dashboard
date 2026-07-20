@@ -1,16 +1,11 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State, response::IntoResponse};
-use serde::Serialize;
+use types::StatusResponse;
 
 use crate::{AppState, auth::AuthUser, error::Result};
 
 use dashboard_k3s::status::get_status as get_status_k3s;
-
-#[derive(Serialize)]
-pub struct StatusResponse {
-    pub backing_up: bool,
-}
 
 pub async fn get_status(
     State(app_state): State<Arc<AppState>>,

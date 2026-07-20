@@ -14,7 +14,7 @@ use crate::{
         modal::Modal,
     },
     icons::Loader,
-    net::{QueryOptions, backup_world, get_backups, use_query, world_status},
+    net::{QueryOptions, backup_status, backup_world, get_backups, use_query, world_status},
 };
 
 pub mod login;
@@ -59,10 +59,20 @@ fn player_head(uuid: &str) -> String {
     format!("https://mc-heads.net/avatar/{uuid}/100")
 }
 
+#[derive(Properties, PartialEq)]
+struct BackupProps {
+    #[prop_or_default]
+    active: bool,
+}
+
 #[component(StatusIndicator)]
-fn status_indicator() -> Html {
-    html! {
-        <span class="h-2 w-2 bg-amber-500 animate-pulse rounded-full"></span>
+fn status_indicator(props: &BackupProps) -> Html {
+    if props.active {
+        html! {
+            <span class="h-2 w-2 bg-amber-500 animate-pulse rounded-full"></span>
+        }
+    } else {
+        html! {}
     }
 }
 
@@ -284,24 +294,36 @@ fn operations() -> Html {
 
 #[component(State)]
 fn state() -> Html {
+    let status = use_query(
+        backup_status,
+        QueryOptions {
+            enabled: true,
+            refetch_interval: 20000,
+            stale_time: 20000.0,
+        },
+    );
+    let backing_up = status.data.as_ref().map(|s| s.backing_up).unwrap_or(false);
+
     html! {
         <section class="rounded-lg border bg-background p-4">
             <div class="flex items-center justify-between mb-3">
                 <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "State" }</h2>
                 <span class="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <StatusIndicator />
-                    { "Running..." }
+                    <StatusIndicator active={backing_up}/>
+                    if backing_up {
+                        { "Running..." }
+                    }
                 </span>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
                 <div class="rounded-md border bg-card px-3 py-2">
                     <p class="text-[11px] text-muted-foreground">{ "Main world backup" }</p>
-                    <p class="text-sm font-semibold">{ "11m ago" }</p>
+                    <p class="text-sm font-semibold text-muted-foreground">{ "unfinished" }</p>
                 </div>
                 <div class="rounded-md border bg-card px-3 py-2">
                     <p class="text-[11px] text-muted-foreground">{ "Creative world sync" }</p>
-                    <p class="text-sm font-semibold">{ "15m ago" }</p>
+                    <p class="text-sm font-semibold text-muted-foreground">{ "unfinished" }</p>
                 </div>
             </div>
         </section>
