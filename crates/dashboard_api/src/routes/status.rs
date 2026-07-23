@@ -22,3 +22,11 @@ pub async fn get_world_status(
     let statuses = get_status_k3s(app_state.kubernetes.clone()).await?;
     Ok(Json(statuses))
 }
+
+pub async fn operation_log(
+    State(app_state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+) -> Result<impl IntoResponse> {
+    let timestamps = app_state.storage.get_operation_timestamps().await?;
+    Ok(Json(timestamps))
+}

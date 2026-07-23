@@ -1,7 +1,9 @@
+use std::{collections::HashMap, fmt::Display};
+
 use aws_sdk_dynamodb::{operation::put_item::PutItemError, types::AttributeValue};
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
-use types::Backup;
+use types::{Backup, Operation, Report};
 
 use crate::Storage;
 use errors::StorageError;
@@ -13,7 +15,72 @@ pub struct LockItem {
     pub expiry_date: i64,
 }
 
+#[allow(unused)]
+#[derive(Deserialize)]
+pub struct ReportItem {
+    pub pk: String,
+    pub sk: String,
+    #[serde(with = "chrono::serde::ts_seconds")]
+    pub operation_timestamp: chrono::DateTime<Utc>,
+}
+
+fn operation_item(item: HashMap<String, AttributeValue>) -> Result<ReportItem, StorageError> {
+    let report: ReportItem = serde_dynamo::from_item(item)?;
+    Ok(report)
+}
+
 impl Storage {
+    pub async fn get_operation_timestamps(&self) -> Result<Vec<Report>, StorageError> {
+        let result = self
+            .client
+            .query()
+            .table_name(&self.environment.table_name)
+            .key_condition_expression("pk = :pk")
+            .expression_attribute_values(":pk", AttributeValue::S("OPERATION_LOG".to_string()))
+            .send()
+            .await?;
+
+        let Some(reports) = result.items else {
+            return Err(StorageError::nil_operation_logs());
+        };
+
+        if reports.is_empty() {
+            return Err(StorageError::nil_operation_logs());
+        }
+
+        let items = reports
+            .into_iter()
+            .map(|item| {
+                let result = operation_item(item)?;
+                Ok(Report {
+                    operation: match result.sk.as_str() {
+                        "backup" => Operation::Backup,
+                        "sync" => Operation::Sync,
+                        _ => unreachable!(),
+                    },
+                    timestamp: result.operation_timestamp,
+                })
+            })
+            .collect::<Result<Vec<Report>, StorageError>>()?;
+        Ok(items)
+    }
+
+    pub async fn report_operation(&self, operation: Operation) -> Result<(), StorageError> {
+        self.client
+            .update_item()
+            .table_name(&self.environment.table_name)
+            .key("pk", AttributeValue::S("OPERATION_LOG".to_string()))
+            .key("sk", AttributeValue::S(operation.to_string()))
+            .update_expression("SET operation_timestamp = :operation_timestamp")
+            .expression_attribute_values(
+                ":operation_timestamp",
+                AttributeValue::N(Utc::now().timestamp().to_string()),
+            )
+            .send()
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_backups(&self) -> Result<Vec<Backup>, StorageError> {
         let output = self
             .ssh
@@ -129,6 +196,11 @@ pub mod errors {
         SshCommand(String),
         #[error("ssh error")]
         Ssh(#[from] openssh::Error),
+        #[error("nil operation")]
+        NilOperation,
+
+        #[error("no operation logs")]
+        NilOperationLogs,
 
         #[error("dynamodb error: {0}")]
         DynamoDb(String),

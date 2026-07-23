@@ -3,11 +3,10 @@ mod user;
 
 pub mod session;
 
-use std::{fmt::Display, sync::Arc};
+use std::sync::Arc;
 
 use aws_config::BehaviorVersion;
 use openssh::{KnownHosts, Session};
-use serde::Deserialize;
 
 pub use backup::errors::StorageError;
 pub use user::{UserError, UserErrorKind};

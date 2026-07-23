@@ -1,7 +1,10 @@
 use std::{collections::HashMap, rc::Rc};
 
 use gloo::{net::http::Request, timers::callback::Interval};
-use types::{Backup, BackupRequest, LoginRequest, ServerStatus, StatusResponse, User, World};
+use types::{
+    Backup, BackupRequest, LoginRequest, Report, ServerStatus, StatusResponse, SyncRequest, User,
+    World,
+};
 use web_sys::{RequestCredentials, js_sys::Date};
 
 use errors::{NetError, NetErrorKind};
@@ -167,6 +170,26 @@ fn error_for_status(status: u16) -> Option<NetError> {
     }
 }
 
+pub async fn sync_world(
+    from_server_name: World,
+    destination_server_name: World,
+) -> Result<(), NetError> {
+    let response = Request::post("/api/sync_world")
+        .credentials(RequestCredentials::Include)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&SyncRequest {
+            from_server_name,
+            destination_server_name,
+        })?)?
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(()),
+    }
+}
+
 pub async fn backup_world(server_name: World, backup_file_name: String) -> Result<(), NetError> {
     let response = Request::post("/api/backup_world")
         .credentials(RequestCredentials::Include)
@@ -181,6 +204,18 @@ pub async fn backup_world(server_name: World, backup_file_name: String) -> Resul
     match error_for_status(response.status()) {
         Some(err) => Err(err),
         _ => Ok(()),
+    }
+}
+
+pub async fn get_operations() -> Result<Vec<Report>, NetError> {
+    let response = Request::get("/api/operation_log")
+        .credentials(RequestCredentials::Include)
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(response.json().await?),
     }
 }
 

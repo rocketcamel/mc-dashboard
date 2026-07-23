@@ -1,10 +1,10 @@
 use tw_merge::tw_merge;
-use yew::{Callback, Children, Classes, Html, MouseEvent, Properties, component, html};
+use yew::{Callback, Children, Html, MouseEvent, Properties, component, html};
 
 #[derive(Properties, PartialEq)]
 pub struct ButtonProps {
     #[prop_or_default]
-    pub class: Classes,
+    pub class: String,
     #[prop_or_default]
     pub button_type: Option<String>,
 

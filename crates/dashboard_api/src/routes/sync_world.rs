@@ -1,18 +1,11 @@
 use std::sync::Arc;
 
 use axum::{Json, extract::State, response::IntoResponse};
-use serde::Deserialize;
-use types::World;
+use types::{Operation, SyncRequest};
 
 use crate::{AppState, auth::AuthUser, error::Result};
 
 use dashboard_k3s::restore::sync_world as sync_world_k3s;
-
-#[derive(Deserialize)]
-pub struct SyncRequest {
-    pub from_server_name: World,
-    pub destination_server_name: World,
-}
 
 pub async fn sync_world(
     State(app_state): State<Arc<AppState>>,
@@ -26,6 +19,8 @@ pub async fn sync_world(
         &request.destination_server_name,
     )
     .await?;
+
+    app_state.storage.report_operation(Operation::Sync).await?;
 
     Ok(())
 }

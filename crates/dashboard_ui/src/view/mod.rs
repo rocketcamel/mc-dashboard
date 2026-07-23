@@ -1,20 +1,14 @@
-use gloo::timers::callback::Timeout;
-use thiserror_ext::AsReport;
-use types::{Server, ServerStatus, World};
-use web_sys::js_sys::Date;
-use yew::{
-    Callback, Html, Properties, Reducible, component, html, platform::spawn_local, use_reducer,
-    use_state,
-};
+use chrono::{DateTime, Utc};
+use types::{Operation, Server, ServerStatus};
+use yew::{Callback, Html, Properties, component, html, use_state};
 
 use crate::{
     components::{
         display::{button::Button, input::Input},
         dropdown::{Dropdown, DropdownItem},
-        modal::Modal,
+        operations::{Backup, Sync},
     },
-    icons::Loader,
-    net::{QueryOptions, backup_status, backup_world, get_backups, use_query, world_status},
+    net::{QueryOptions, backup_status, get_operations, use_query, world_status},
 };
 
 pub mod login;
@@ -22,37 +16,6 @@ pub mod login;
 #[derive(Properties, PartialEq)]
 struct IndicatorProps {
     status: ServerStatus,
-}
-
-#[derive(Clone)]
-enum BackupAction {
-    Idle,
-    StartBackup,
-    Success,
-    Error(String),
-}
-
-#[derive(Clone)]
-struct BackupState {
-    generation: u32,
-    current: BackupAction,
-}
-
-impl Reducible for BackupState {
-    type Action = BackupAction;
-
-    fn reduce(self: std::rc::Rc<Self>, action: Self::Action) -> std::rc::Rc<Self> {
-        let mut next = (*self).clone();
-
-        match action {
-            BackupAction::StartBackup => next.generation += 1,
-            BackupAction::Success => next.current = BackupAction::Success,
-            BackupAction::Idle => next.current = BackupAction::Idle,
-            BackupAction::Error(e) => next.current = BackupAction::Error(e),
-        };
-
-        next.into()
-    }
 }
 
 fn player_head(uuid: &str) -> String {
@@ -76,44 +39,39 @@ fn status_indicator(props: &BackupProps) -> Html {
     }
 }
 
-fn format_bytes(bytes: u64) -> String {
-    const KB: f64 = 1024.0;
-    const MB: f64 = KB * 1024.0;
-    const GB: f64 = MB * 1024.0;
+fn format_time(timestamp: DateTime<Utc>) -> String {
+    let now = Utc::now();
+    let seconds = (now - timestamp).num_seconds();
 
-    let b = bytes as f64;
-
-    if b >= GB {
-        format!("{:.1}G", b / GB)
-    } else if b >= MB {
-        format!("{:.1}MB", b / MB)
-    } else if b >= KB {
-        format!("{:.1}KB", b / KB)
-    } else {
-        format!("{bytes}B")
+    if seconds <= 0 {
+        return "just now".to_string();
     }
-}
 
-fn format_date(iso: &str) -> String {
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
+    let minutes = seconds / 60;
+    let hours = minutes / 60;
+    let days = hours / 24;
 
-    let date = Date::new(&iso.into());
-    let month = MONTHS[date.get_month() as usize];
-    let day = date.get_date();
+    if minutes < 1 {
+        "just now".to_string()
+    } else if minutes < 60 {
+        format!("{minutes}m ago")
+    } else if hours < 24 {
+        let remaining_minutes = minutes % 60;
 
-    let hours = date.get_hours();
-    let minutes = date.get_minutes();
+        if remaining_minutes == 0 {
+            format!("{hours}hr ago")
+        } else {
+            format!("{hours}hr {remaining_minutes}m ago")
+        }
+    } else {
+        let remaining_hours = hours % 24;
 
-    let (hour_12, suffix) = match hours {
-        0 => (12, "AM"),
-        1..=11 => (hours, "AM"),
-        12 => (12, "PM"),
-        _ => (hours - 12, "PM"),
-    };
-
-    format!("{month} {day}, {hour_12}:{minutes:02} {suffix}")
+        if remaining_hours == 0 {
+            format!("{days}d ago")
+        } else {
+            format!("{days}d {remaining_hours}hr ago")
+        }
+    }
 }
 
 #[component(Operations)]
@@ -131,135 +89,11 @@ fn operations() -> Html {
                 <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ "Stopped" }</span>
             },
             ServerStatus::Starting => html! {
-                <span class="text-[11px] rounded-full px-2 py-0.5 bg-yellow-500 text-yellow-400 animate-pulse">{ "Starting" }</span>
+                <span class="text-[11px] rounded-full px-2 py-0.5 bg-yellow-500/15 text-yellow-400 animate-pulse">{ "Starting" }</span>
             },
             ServerStatus::Unknown => html! {
                 <span class="text-[11px] rounded-full px-2 py-0.5 bg-gray-500/10 text-gray-500">{ "Fetching..." }</span>
             },
-        }
-    }
-
-    #[component(Backup)]
-    fn backup() -> Html {
-        let backups_query = use_query(
-            get_backups,
-            QueryOptions {
-                enabled: true,
-                refetch_interval: 20000,
-                stale_time: 20000.0,
-            },
-        );
-        let state = use_reducer(|| BackupState {
-            generation: 0,
-            current: BackupAction::Idle,
-        });
-
-        let selected_backup = use_state::<Option<types::Backup>, _>(|| None);
-        let open = use_state(|| false);
-
-        fn error_state() -> Html {
-            html! { <Button disabled={true} class="px-2 py-0.5 rounded-md bg-destructive">{ "Error getting backups" }</Button> }
-        }
-
-        fn loading_state() -> Html {
-            html! { <Button disabled={true} class="px-2 py-0.5 rounded-md bg-muted-foreground"><Loader class="animate-spin" /></Button> }
-        }
-
-        if backups_query.error.is_some() {
-            return error_state();
-        }
-
-        let Some(data) = backups_query.data.as_ref() else {
-            return loading_state();
-        };
-
-        let options: Vec<DropdownItem<String>> = data
-            .iter()
-            .map(|b| DropdownItem {
-                id: b.filename.clone(),
-                content: html! { { format!("{} - {}", format_date(&b.date), format_bytes(b.bytes)) } },
-            })
-            .collect();
-
-        let update_selected = Callback::from({
-            let selected_backup = selected_backup.clone();
-            let open = open.clone();
-            let data = data.clone();
-
-            move |id: String| {
-                let selection = data.iter().find(|b| b.filename == id).cloned();
-                selected_backup.set(selection);
-                open.set(true)
-            }
-        });
-
-        let on_cancel = Callback::from({
-            let open = open.clone();
-            move |_| open.set(false)
-        });
-
-        let on_confirm = Callback::from({
-            let open = open.clone();
-            let selected_backup = selected_backup.clone();
-            let state = state.clone();
-
-            move |_| {
-                open.set(false);
-
-                spawn_local({
-                    let selected_backup = selected_backup.clone();
-                    let state = state.clone();
-                    async move {
-                        let generation = state.generation;
-                        state.dispatch(BackupAction::StartBackup);
-
-                        let result = backup_world(
-                            World::Main,
-                            selected_backup.as_ref().unwrap().filename.clone(),
-                        )
-                        .await;
-
-                        match result {
-                            Ok(_) => {
-                                state.dispatch(BackupAction::Success);
-                                Timeout::new(1000, move || {
-                                    if state.generation != generation {
-                                        return;
-                                    }
-
-                                    state.dispatch(BackupAction::Idle)
-                                })
-                                .forget();
-                            }
-                            Err(e) => {
-                                state.dispatch(BackupAction::Error(e.as_report().to_string()))
-                            }
-                        }
-                    }
-                });
-            }
-        });
-
-        let on_closed = Callback::from({
-            let selected_backup = selected_backup.clone();
-            move |_| selected_backup.set(None)
-        });
-
-        html! {
-            <>
-            <Modal
-                title="World Backup"
-                open={*open}
-                message={selected_backup.as_ref().map(|b| format!("Backup main world at {}? ({})", format_date(&b.date), format_bytes(b.bytes))).unwrap_or("Select a backup".to_string())}
-                {on_cancel}
-                {on_confirm}
-                {on_closed}
-            />
-
-            <Dropdown<String> {options} {update_selected} item_class="text-xs text-nowrap">
-                <Button class="px-2 py-0.5 rounded-md">{ "Backup" }</Button>
-            </Dropdown<String>>
-            </>
         }
     }
 
@@ -285,10 +119,26 @@ fn operations() -> Html {
                         <Indicator status={statuses.map(|s| (*s.get("creative").unwrap()).clone()).unwrap_or(ServerStatus::Unknown)}/>
                     </div>
 
-                    <Button class="px-2 py-0.5 rounded-md">{ "Sync" }</Button>
+                    <Sync />
                 </div>
             </div>
         </section>
+    }
+}
+
+#[component(StateSkeleton)]
+fn state_skeleton() -> Html {
+    html! {
+        <div class="grid grid-cols-2 gap-2 animate-pulse">
+            <div class="rounded-md border bg-card px-3 py-2 space-y-2">
+                <p class="text-[11px] text-muted-foreground">{ "Main world backup" }</p>
+                <div class="h-4 w-20 rounded bg-muted"></div>
+            </div>
+            <div class="rounded-md border bg-card px-3 py-2 space-y-2">
+                <p class="text-[11px] text-muted-foreground">{ "Creative world sync" }</p>
+                <div class="h-4 w-20 rounded bg-muted"></div>
+            </div>
+        </div>
     }
 }
 
@@ -302,7 +152,44 @@ fn state() -> Html {
             stale_time: 20000.0,
         },
     );
+
     let backing_up = status.data.as_ref().map(|s| s.backing_up).unwrap_or(false);
+
+    #[component(OperationLog)]
+    fn operation_log() -> Html {
+        let operations = use_query(
+            get_operations,
+            QueryOptions {
+                enabled: true,
+                refetch_interval: 60000,
+                stale_time: 60000.0,
+            },
+        );
+
+        let Some(data) = operations.data.as_ref() else {
+            return html! {
+                <StateSkeleton />
+            };
+        };
+
+        html! {
+            <div class="grid grid-cols-2 gap-2">
+                <div class="rounded-md border bg-card px-3 py-2">
+                    <p class="text-[11px] text-muted-foreground">{ "Main world backup" }</p>
+                    <p class="text-sm font-semibold">
+                        { data.iter().find(|r| r.operation == Operation::Backup).map(|r| format_time(r.timestamp)) }
+                    </p>
+                </div>
+
+                <div class="rounded-md border bg-card px-3 py-2">
+                    <p class="text-[11px] text-muted-foreground">{ "Creative world sync" }</p>
+                    <p class="text-sm font-semibold">
+                        { data.iter().find(|r| r.operation == Operation::Sync).map(|r| format_time(r.timestamp)) }
+                    </p>
+                </div>
+            </div>
+        }
+    }
 
     html! {
         <section class="rounded-lg border bg-background p-4">
@@ -316,16 +203,7 @@ fn state() -> Html {
                 </span>
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
-                <div class="rounded-md border bg-card px-3 py-2">
-                    <p class="text-[11px] text-muted-foreground">{ "Main world backup" }</p>
-                    <p class="text-sm font-semibold text-muted-foreground">{ "unfinished" }</p>
-                </div>
-                <div class="rounded-md border bg-card px-3 py-2">
-                    <p class="text-[11px] text-muted-foreground">{ "Creative world sync" }</p>
-                    <p class="text-sm font-semibold text-muted-foreground">{ "unfinished" }</p>
-                </div>
-            </div>
+            <OperationLog />
         </section>
 
     }

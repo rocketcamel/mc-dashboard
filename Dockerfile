@@ -1,10 +1,15 @@
-# stage 1: frontend
-FROM oven/bun:1 AS frontend-builder
+# stage 1: ui
+FROM rust:1.95 AS ui-builder
 WORKDIR /app
-COPY frontend/package.json frontend/bun.lock ./
-RUN bun install --frozen-lockfile
-COPY frontend/ ./
-RUN bun run build
+
+RUN rustup target add wasm32-unknown-unknown
+RUN cargo install trunk --locked
+
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+WORKDIR /app/crates/dashboard_ui
+RUN trunk build --release
 
 # stage 2: api
 FROM rust:1.95 AS api-builder
@@ -12,7 +17,7 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
 
-RUN cargo build --release
+RUN cargo build -p dashboard_api --release
 
 # stage 3: runtime
 FROM debian:trixie-slim
@@ -20,7 +25,7 @@ RUN apt-get update && apt-get install -y ca-certificates openssh-client && rm -r
 
 WORKDIR /app
 COPY --from=api-builder /app/target/release/dashboard_api ./
-COPY --from=frontend-builder /app/dist ./dist
+COPY --from=ui-builder /app/crates/dashboard_ui/dist ./dist
 
 EXPOSE 8080
 CMD ["./dashboard_api"]

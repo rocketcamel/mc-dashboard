@@ -19,6 +19,8 @@ pub struct DropdownProps<T: PartialEq> {
     #[prop_or_default]
     pub label: Option<AttrValue>,
     #[prop_or_default]
+    pub disabled: bool,
+    #[prop_or_default]
     pub item_class: AttrValue,
 
     #[prop_or_default]
@@ -115,10 +117,11 @@ pub fn dropdown<T: Clone + PartialEq + 'static>(props: &DropdownProps<T>) -> Htm
         <div class="relative inline-block" data-state={state}>
             <button type="button"
                 onclick={toggle}
+                disabled={props.disabled}
                 ref={trigger_ref}
                 aria-haspopup="menu"
                 aria-expanded={open.to_string()}
-                class="m-0 p-1 flex h-full w-full"
+                class="m-0 p-1 flex h-full w-full disabled:pointer-events-none"
             >
                 { for props.children.iter() }
             </button>

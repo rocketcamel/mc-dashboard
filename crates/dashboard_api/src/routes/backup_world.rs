@@ -8,7 +8,7 @@ use axum::{
 use serde::Deserialize;
 
 use dashboard_k3s::restore::backup_world as backup_world_k3s;
-use types::World;
+use types::{Operation, World};
 
 use crate::{
     AppState,
@@ -34,6 +34,12 @@ pub async fn backup_world(
         &request.backup_file_name,
     )
     .await?;
+
+    app_state
+        .storage
+        .report_operation(Operation::Backup)
+        .await?;
+
     Ok(())
 }
 

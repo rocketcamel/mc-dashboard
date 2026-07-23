@@ -26,7 +26,7 @@ pub fn header() -> Html {
     let options = vec![DropdownItem {
         id: "logout",
         content: html! {
-            <div class="flex justify-between">
+            <div class="flex justify-between w-full">
                 <span> { "Logout" }</span>
                 <span class="inline-flex ml-auto items-center"><LogOut  class="h-4 w-4" /></span>
             </div>

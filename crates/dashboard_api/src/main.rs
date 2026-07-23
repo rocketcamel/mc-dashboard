@@ -59,6 +59,7 @@ async fn run() -> crate::error::Result<()> {
         .route("/api/sync_world", post(routes::sync_world::sync_world))
         .route("/api/status", get(routes::status::get_status))
         .route("/api/world_status", get(routes::status::get_world_status))
+        .route("/api/operation_log", get(routes::status::operation_log))
         .nest("/api/auth", routes::auth::router())
         .nest("/api/logs", routes::logs::router())
         .nest("/api/whitelist", routes::whitelist::router())
