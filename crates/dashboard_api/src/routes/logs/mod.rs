@@ -1,87 +1,40 @@
 use std::sync::Arc;
 
 use axum::{
+    Json, Router,
     extract::{
-        Path, State, WebSocketUpgrade,
+        Path, Query, State, WebSocketUpgrade,
         ws::{Message, WebSocket},
     },
     response::IntoResponse,
+    routing::get,
 };
-use futures::{AsyncBufReadExt, TryStreamExt};
-use k8s_openapi::api::core::v1::Pod;
-use kube::{
-    Api,
-    api::{ListParams, LogParams},
+use dashboard_k3s::logging::{
+    LogMessage, MessageKind, errors::LoggingErrorKind, snapshot_logs, stream_logs,
 };
-use serde::Serialize;
+use futures::TryStreamExt;
+use serde::Deserialize;
 use thiserror_ext::AsReport;
 
-use crate::{
-    AppState,
-    routes::{World, logs::errors::StreamLogsErrorKind},
-};
+use errors::StreamLogsError;
+use types::World;
 
-#[derive(Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum MessageKind {
-    Log,
-    Error,
+use crate::{AppState, auth::AuthUser, routes::logs::errors::StreamLogsErrorKind};
+
+#[derive(Deserialize)]
+pub struct QueryLogsRequest {
+    pub world: World,
 }
 
-#[derive(Serialize)]
-pub struct LogStreamMessage<'a> {
-    pub kind: MessageKind,
-    pub data: &'a str,
-}
-
-fn to_message(kind: MessageKind, data: &str) -> Result<String, errors::StreamLogsError> {
-    Ok(serde_json::to_string(&LogStreamMessage { kind, data })?)
-}
-
-async fn pod_name(world: &World, client: kube::Client) -> Result<String, errors::StreamLogsError> {
-    let pods: Api<Pod> = Api::namespaced(client, "minecraft");
-
-    for pod in pods
-        .list(&ListParams::default().labels(&format!("app=minecraft-{world}")))
-        .await?
-    {
-        if let Some(name) = pod.metadata.name {
-            return Ok(name);
-        } else {
-            return Err(errors::StreamLogsError::no_name());
-        }
-    }
-
-    Err(errors::StreamLogsError::null_pod())
-}
-
-pub async fn stream_logs(
-    app_state: Arc<AppState>,
-    world: World,
-    socket: &mut WebSocket,
-) -> Result<(), errors::StreamLogsError> {
-    let pods: Api<Pod> = Api::namespaced(app_state.kube.clone(), "minecraft");
-    let name = pod_name(&world, app_state.kube.clone()).await?;
-
-    let lp = LogParams {
-        container: Some(format!("minecraft-{world}")),
-        follow: true,
-        ..Default::default()
-    };
-    let mut logs = pods.log_stream(&name, &lp).await?.lines();
-
-    while let Some(log) = logs.try_next().await? {
-        let message = to_message(MessageKind::Log, &log)?;
-        if socket.send(Message::Text(message.into())).await.is_err() {
-            return Ok(());
-        }
-    }
-
-    Ok(())
+fn to_message(message: &LogMessage) -> Result<String, StreamLogsError> {
+    Ok(serde_json::to_string(message)?)
 }
 
 async fn throw(socket: &mut WebSocket, why: &str) {
-    let Ok(message) = to_message(MessageKind::Error, why) else {
+    let Ok(message) = to_message(&LogMessage {
+        kind: MessageKind::Error,
+        data: why.to_string(),
+    }) else {
         tracing::error!("websocket error: {why}");
         return;
     };
@@ -93,44 +46,141 @@ async fn throw(socket: &mut WebSocket, why: &str) {
     }
 }
 
-pub async fn handler(
+async fn create_stream(
+    socket: &mut WebSocket,
+    app_state: Arc<AppState>,
+    world: World,
+) -> Result<(), StreamLogsError> {
+    let mut stream = stream_logs(app_state.kubernetes.clone(), &world).await?;
+
+    while let Some(log) = stream.try_next().await? {
+        let message = to_message(&log)?;
+
+        if socket.send(Message::Text(message.into())).await.is_err() {
+            return Ok(());
+        }
+    }
+    Ok(())
+}
+
+pub async fn get_logs(
+    State(app_state): State<Arc<AppState>>,
+    AuthUser(_): AuthUser,
+    Query(request): Query<QueryLogsRequest>,
+) -> Result<impl IntoResponse, StreamLogsError> {
+    let logs = snapshot_logs(app_state.kubernetes.clone(), &request.world).await?;
+    Ok(Json(logs))
+}
+
+pub async fn socket_handler(
     State(app_state): State<Arc<AppState>>,
     Path(world): Path<World>,
+    AuthUser(_): AuthUser,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(async |mut socket| {
-        let result = stream_logs(app_state, world, &mut socket).await;
+    ws.on_upgrade({
+        async move |mut socket| {
+            let result = create_stream(&mut socket, app_state, world).await;
 
-        if let Err(e) = result {
-            match e.inner() {
-                StreamLogsErrorKind::NoName | StreamLogsErrorKind::NullPod => {
-                    let why = e.as_report().to_string();
-                    throw(&mut socket, &why).await;
-                }
-                _ => {
-                    tracing::error!("websocket error: {}", e.as_report());
+            if let Err(e) = result {
+                match e.inner() {
+                    StreamLogsErrorKind::Logging(why) => match why.inner() {
+                        LoggingErrorKind::NoName | LoggingErrorKind::NullPod(_) => {
+                            let why = e.as_report().to_string();
+                            throw(&mut socket, &why).await;
+                        }
+                        _ => {
+                            tracing::error!("logging error: {}", e.as_report());
+                        }
+                    },
+
+                    _ => {
+                        tracing::error!("websocket error: {}", e.as_report());
+                    }
                 }
             }
         }
     })
 }
 
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/query", get(get_logs))
+        .route("/stream/{world}", get(socket_handler))
+}
+
 pub mod errors {
+    use axum::Json;
+    use axum::http::StatusCode;
+    use axum::response::IntoResponse;
+    use dashboard_k3s::logging;
+    use dashboard_k3s::logging::errors::LoggingErrorKind;
+    use serde::Serialize;
     use thiserror::Error;
+    use thiserror_ext::{AsReport, Report};
 
     #[derive(Error, Debug, thiserror_ext::Box, thiserror_ext::Construct)]
     #[thiserror_ext(newtype(name = StreamLogsError))]
     pub enum StreamLogsErrorKind {
-        #[error("pod has no name")]
-        NoName,
-        #[error("Server is offline")]
-        NullPod,
-        #[error("kube error")]
-        Kube(#[from] kube::Error),
-
-        #[error("error streaming logs")]
-        Stream(#[from] std::io::Error),
         #[error("error serializing message")]
         Serialize(#[from] serde_json::Error),
+
+        #[error(transparent)]
+        Logging(#[from] logging::LoggingError),
+    }
+
+    #[derive(Serialize)]
+    pub struct ErrorResponse {
+        pub errors: Vec<String>,
+    }
+
+    fn throw_internal(report: Report) -> StatusCode {
+        tracing::error!("{}", report);
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
+
+    fn status(kind: &StreamLogsErrorKind, report: Report) -> StatusCode {
+        match kind {
+            StreamLogsErrorKind::Logging(e) => match e.inner() {
+                _ => throw_internal(report),
+            },
+
+            _ => throw_internal(report),
+        }
+    }
+
+    fn body(kind: &StreamLogsErrorKind) -> Option<ErrorResponse> {
+        let mut response = ErrorResponse { errors: Vec::new() };
+
+        let mut push = |data: String| {
+            response.errors.push(data);
+        };
+
+        match kind {
+            StreamLogsErrorKind::Logging(e) => match e.inner() {
+                LoggingErrorKind::NullPod(_) => {
+                    push(e.as_report().to_string());
+                    Some(response)
+                }
+
+                _ => None,
+            },
+
+            _ => None,
+        }
+    }
+
+    impl IntoResponse for StreamLogsError {
+        fn into_response(self) -> axum::response::Response {
+            let error_kind = self.inner();
+            let status = status(error_kind, self.as_report());
+            let body = body(error_kind);
+
+            if let Some(body) = body {
+                (status, Json(body)).into_response()
+            } else {
+                status.into_response()
+            }
+        }
     }
 }

@@ -30,13 +30,8 @@ spec:
         - |
           set -e
           
-          echo "=========================================="
-          echo "Minecraft World Restore Job"
-          echo "=========================================="
-          echo ""
-          
           SERVER_NAME="${SERVER_NAME}"
-          BACKUP_FILE="${BACKUP_FILE:-latest.tgz}"
+          BACKUP_FILE="${BACKUP_FILE:-latest.tar.gz}"
           BACKUP_PATH="/backups/${BACKUP_FILE}"
           DATA_DIR="/data"
           
@@ -44,7 +39,6 @@ spec:
           echo "  Server: ${SERVER_NAME}"
           echo "  Backup file: ${BACKUP_FILE}"
           echo "  Backup path: ${BACKUP_PATH}"
-          echo "  Data directory: ${DATA_DIR}"
           echo ""
           
           if [ ! -f "${BACKUP_PATH}" ]; then

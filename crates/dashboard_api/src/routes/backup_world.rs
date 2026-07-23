@@ -7,12 +7,13 @@ use axum::{
 };
 use serde::Deserialize;
 
+use dashboard_k3s::restore::backup_world as backup_world_k3s;
+use types::{Operation, World};
+
 use crate::{
     AppState,
     auth::AuthUser,
     error::{Error, Result},
-    k3s::backup_world as backup_world_k3s,
-    routes::World,
 };
 
 #[derive(Deserialize)]
@@ -26,7 +27,18 @@ pub async fn backup_world(
     AuthUser(_): AuthUser,
     request: BackupRequest,
 ) -> Result<impl IntoResponse> {
-    backup_world_k3s(app_state, &request.server_name, &request.backup_file_name).await?;
+    backup_world_k3s(
+        app_state.storage.clone(),
+        app_state.kubernetes.clone(),
+        &request.server_name,
+        &request.backup_file_name,
+    )
+    .await?;
+
+    app_state
+        .storage
+        .report_operation(Operation::Backup)
+        .await?;
 
     Ok(())
 }
@@ -42,10 +54,14 @@ where
         state: &S,
     ) -> std::result::Result<Self, Self::Rejection> {
         let app_state = Arc::<AppState>::from_ref(state);
-        let Json(body): Json<BackupRequest> = Json::from_request(req, state)
-            .await
-            .map_err(|_| Error::forbidden())?;
+        let Json(body): Json<BackupRequest> =
+            Json::from_request(req, state).await.map_err(|e| {
+                tracing::error!("bad request: {e}");
+                Error::bad_request()
+            })?;
+
         let backups = app_state.storage.get_backups().await?;
+
         if !backups.iter().any(|b| b.filename == body.backup_file_name)
             && body.backup_file_name != "latest.tar.gz"
         {

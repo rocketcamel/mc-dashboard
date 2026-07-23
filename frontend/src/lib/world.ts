@@ -7,7 +7,8 @@ export type LogMessage = {
   data: string;
 };
 
-type ViewState = "connected" | "connecting" | "off";
+export type ViewState = "connected" | "connecting" | "off";
+export const SERVERS = ["main", "creative"];
 
 export async function get_world_statuses() {
   const response = await fetch("/api/world_status");
@@ -53,25 +54,65 @@ export async function sync_world(
   return response.json();
 }
 
+export type QueryLogsResponse = {
+  data: LogMessage[];
+};
+
+async function query_logs(world: World): Promise<QueryLogsResponse> {
+  const response = await fetch(`/api/logs/query?world=${world}`);
+
+  if (!response.ok) {
+    throw new Error("error retreiving logs");
+  }
+
+  return response.json();
+}
+
 export function useLogStream(world: World): [LogMessage[], ViewState] {
+  const MAX_LOGS = 500;
+
   const [logs, setLogs] = useState<LogMessage[]>([]);
-  const [viewState, setViewState] = useState<ViewState>("off");
+  const [viewState, setViewState] = useState<ViewState>("connecting");
   const buffer = useRef<LogMessage[]>([]);
+  const flush = useRef(false);
+
+  const push = (log: LogMessage) => {
+    const b = buffer.current;
+    b.push(log);
+
+    if (b.length > MAX_LOGS) b.splice(0, b.length - MAX_LOGS);
+
+    if (!flush.current) {
+      flush.current = true;
+
+      requestAnimationFrame(() => {
+        flush.current = false;
+        setLogs(buffer.current.slice());
+      });
+    }
+  };
 
   useEffect(() => {
     if (!world) return;
     buffer.current.length = 0;
-    setViewState("connecting");
-    const ws = new WebSocket(`/api/logs/${world}`);
 
-    ws.onopen = () => setViewState("connected");
-    ws.onclose = () => setViewState("off");
-    ws.onmessage = (e) => {
-      console.warn("got log");
-      const msg = JSON.parse(e.data) as LogMessage;
-      buffer.current.push(msg);
-      setLogs([...buffer.current.slice(-200)]);
+    const create_logs = async (ws: WebSocket) => {
+      const current_logs = await query_logs(world);
+      buffer.current = current_logs.data.slice(-MAX_LOGS);
+
+      setLogs(buffer.current.slice());
+
+      ws.onopen = () => setViewState("connected");
+      ws.onclose = () => setViewState("off");
+
+      ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data) as LogMessage;
+        push(msg);
+      };
     };
+
+    const ws = new WebSocket(`/api/logs/stream/${world}`);
+    create_logs(ws);
 
     return () => ws.close();
   }, [world]);

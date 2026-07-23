@@ -1,0 +1,50 @@
+use tw_merge::tw_merge;
+use web_sys::HtmlInputElement;
+use yew::{AttrValue, Callback, Html, InputEvent, Properties, TargetCast, component, html};
+
+#[derive(Properties, PartialEq)]
+pub struct InputProps {
+    #[prop_or_default]
+    pub on_update: Callback<String>,
+    #[prop_or_default]
+    pub invalid: bool,
+
+    #[prop_or_default]
+    pub placeholder: AttrValue,
+    #[prop_or_default]
+    pub field_type: AttrValue,
+    #[prop_or_default]
+    pub id: AttrValue,
+    #[prop_or_default]
+    pub class: AttrValue,
+}
+
+#[component(Input)]
+pub fn input(props: &InputProps) -> Html {
+    let on_change = {
+        let on_update = props.on_update.clone();
+        Callback::from(move |e: InputEvent| {
+            let input: HtmlInputElement = e.target_unchecked_into();
+            on_update.emit(input.value())
+        })
+    };
+
+    let input_classes = tw_merge!(
+        "w-full text-xs/relaxed h-7 border bg-input/20 px-2 py-0.5 rounded-md outline-none transition-colors {}",
+        if props.invalid {
+            "border-red-500 focus-visible:ring-2 focus-visible:ring-red-500/30"
+        } else {
+            "border-input focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+        },
+        props.class.to_string()
+    );
+
+    html! {
+        <input id={&props.id} class={input_classes}
+               aria-invalid={props.invalid.to_string()}
+               placeholder={&props.placeholder}
+               type={&props.field_type}
+               oninput={on_change}
+        />
+    }
+}

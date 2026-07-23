@@ -2,7 +2,10 @@ dev:
     overmind start
 
 api:
-    cargo watch -x run
+    cargo watch -x "run -p dashboard_api"
+
+ui:
+  cd crates/dashboard_ui && trunk serve
 
 frontend:
     cd frontend && bun dev

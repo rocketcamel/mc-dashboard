@@ -2,6 +2,7 @@ api/target
 .terraform
 *.tfstate
 *.tfstate.backup
+*dist/
 
 
 # Added by cargo
