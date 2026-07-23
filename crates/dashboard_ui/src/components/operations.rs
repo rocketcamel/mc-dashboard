@@ -94,6 +94,8 @@ fn format_date(iso: &str) -> String {
 #[component(Sync)]
 pub fn sync() -> Html {
     let open = use_state(|| false);
+    let mode = use_state(|| "regular");
+
     let state = use_reducer(|| BackupState {
         generation: 0,
         current: BackupAction::Idle,
@@ -112,10 +114,12 @@ pub fn sync() -> Html {
 
     let update_selected = Callback::from({
         let open = open.clone();
+        let mode = mode.clone();
+
         move |id: &'static str| {
             match id {
-                "regular" => {}
-                "save" => {}
+                "regular" => mode.set("regular"),
+                "save" => mode.set("save"),
                 _ => unreachable!(),
             };
             open.set(true);
@@ -132,16 +136,24 @@ pub fn sync() -> Html {
     let on_confirm = Callback::from({
         let open = open.clone();
         let state = state.clone();
+        let mode = mode.clone();
+
         move |_| {
             open.set(false);
 
             spawn_local({
                 let state = state.clone();
+                let mode = mode.clone();
+
                 async move {
                     state.dispatch(BackupAction::Start);
                     let generation = state.generation;
 
-                    let result = sync_world(World::Main, World::Creative).await;
+                    let result = if *mode == "regular" {
+                        backup_world(World::Creative, "latest.tar.gz".to_string()).await
+                    } else {
+                        sync_world(World::Main, World::Creative).await
+                    };
 
                     match result {
                         Ok(_) => {
