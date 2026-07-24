@@ -8,8 +8,7 @@ use axum::{
 };
 
 pub use errors::WhitelistRouteError;
-use serde::Deserialize;
-use types::World;
+use types::{WhitelistAddRequest, WhitelistRequest};
 
 use crate::{AppState, auth::AuthUser};
 
@@ -17,21 +16,10 @@ use dashboard_k3s::whitelist::{
     whitelist_add as whitelist_add_k3s, whitelist_get as whitelist_get_k3s,
 };
 
-#[derive(Deserialize)]
-pub struct WhitelistRequest {
-    pub username: String,
-    pub world: World,
-}
-
-#[derive(Deserialize)]
-pub struct WhitelistGetRequest {
-    pub world: World,
-}
-
 pub async fn whitelist_add(
     State(app_state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
-    Json(request): Json<WhitelistRequest>,
+    Json(request): Json<WhitelistAddRequest>,
 ) -> Result<impl IntoResponse, WhitelistRouteError> {
     whitelist_add_k3s(
         app_state.kubernetes.clone(),
@@ -45,7 +33,7 @@ pub async fn whitelist_add(
 pub async fn whitelist_get(
     State(app_state): State<Arc<AppState>>,
     AuthUser(_): AuthUser,
-    Query(request): Query<WhitelistGetRequest>,
+    Query(request): Query<WhitelistRequest>,
 ) -> Result<impl IntoResponse, WhitelistRouteError> {
     let entries = whitelist_get_k3s(app_state.kubernetes.clone(), &request.world).await?;
     Ok(Json(entries))

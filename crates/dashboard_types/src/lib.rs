@@ -31,7 +31,7 @@ pub struct StatusResponse {
     pub backing_up: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum World {
     Main,
@@ -114,4 +114,22 @@ impl Display for ServerStatus {
 pub enum Server {
     Main,
     Creative,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct WhitelistEntry {
+    #[serde(alias = "name")]
+    pub username: String,
+    pub uuid: String,
+}
+
+#[derive(Deserialize)]
+pub struct WhitelistAddRequest {
+    pub username: String,
+    pub world: World,
+}
+
+#[derive(Deserialize)]
+pub struct WhitelistRequest {
+    pub world: World,
 }

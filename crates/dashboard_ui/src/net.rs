@@ -3,7 +3,7 @@ use std::{collections::HashMap, rc::Rc};
 use gloo::{net::http::Request, timers::callback::Interval};
 use types::{
     Backup, BackupRequest, LoginRequest, Report, ServerStatus, StatusResponse, SyncRequest, User,
-    World,
+    WhitelistEntry, World,
 };
 use web_sys::{RequestCredentials, js_sys::Date};
 
@@ -60,8 +60,40 @@ impl<T, E> Clone for QueryState<T, E> {
 }
 
 #[hook]
+pub fn use_query_with<D, T, E, F, Fut>(
+    dependencies: D,
+    get: F,
+    options: QueryOptions,
+) -> UseStateHandle<QueryState<T, E>>
+where
+    D: PartialEq + Clone + 'static,
+    T: 'static,
+    E: 'static,
+    F: Fn() -> Fut + 'static,
+    Fut: std::future::Future<Output = Result<T, E>> + 'static,
+{
+    use_query_impl(dependencies, get, options)
+}
+
+#[hook]
 pub fn use_query<T, E, F, Fut>(get: F, options: QueryOptions) -> UseStateHandle<QueryState<T, E>>
 where
+    T: 'static,
+    E: 'static,
+    F: Fn() -> Fut + 'static,
+    Fut: std::future::Future<Output = Result<T, E>> + 'static,
+{
+    use_query_impl((), get, options)
+}
+
+#[hook]
+fn use_query_impl<D, T, E, F, Fut>(
+    dependencies: D,
+    get: F,
+    options: QueryOptions,
+) -> UseStateHandle<QueryState<T, E>>
+where
+    D: PartialEq + Clone + 'static,
     T: 'static,
     E: 'static,
     F: Fn() -> Fut + 'static,
@@ -121,28 +153,26 @@ where
         }
     });
 
-    use_effect_with(options.enabled, {
+    use_effect_with((options.enabled, dependencies.clone()), {
         let fetch = fetch.clone();
-        let state = state.clone();
+        // let state = state.clone();
 
         move |_| {
             if !options.enabled {
                 return;
             }
 
-            let now = Date::now();
-            let stale = state
-                .last_fetched
-                .map(|t| now - t > options.stale_time)
-                .unwrap_or(true);
+            // let now = Date::now();
+            // let stale = state
+            //     .last_fetched
+            //     .map(|t| now - t > options.stale_time)
+            //     .unwrap_or(true);
 
-            if stale {
-                fetch.emit(())
-            }
+            fetch.emit(())
         }
     });
 
-    use_effect_with(options.enabled, {
+    use_effect_with((options.enabled, dependencies), {
         let fetch = fetch.clone();
         move |_| {
             let handle = if options.enabled {
@@ -204,6 +234,19 @@ pub async fn backup_world(server_name: World, backup_file_name: String) -> Resul
     match error_for_status(response.status()) {
         Some(err) => Err(err),
         _ => Ok(()),
+    }
+}
+
+pub async fn get_whitelisted_players(world: World) -> Result<Vec<WhitelistEntry>, NetError> {
+    let response = Request::get("/api/whitelist/get")
+        .query([("world", world.as_ref())])
+        .header("Content-Type", "application/json")
+        .send()
+        .await?;
+
+    match error_for_status(response.status()) {
+        Some(err) => Err(err),
+        _ => Ok(response.json().await?),
     }
 }
 

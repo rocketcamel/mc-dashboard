@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
-use types::{Operation, Server, ServerStatus};
-use yew::{Callback, Html, Properties, component, html, use_state};
+use types::{Operation, Server, ServerStatus, World};
+use yew::{
+    Callback, Html, Properties, component, html, platform::spawn_local, use_effect_with, use_state,
+};
 
 use crate::{
     components::{
@@ -8,7 +10,11 @@ use crate::{
         dropdown::{Dropdown, DropdownItem},
         operations::{Backup, Sync},
     },
-    net::{QueryOptions, backup_status, get_operations, use_query, world_status},
+    icons::Loader,
+    net::{
+        QueryOptions, backup_status, get_operations, get_whitelisted_players, use_query,
+        use_query_with, world_status,
+    },
 };
 
 pub mod login;
@@ -209,18 +215,87 @@ fn state() -> Html {
     }
 }
 
+#[component(WhitelistSkeleton)]
+fn whitelist_skeleton() -> Html {
+    html! {
+        <section class="lg:col-span-2 rounded-lg border bg-background p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                <div class="h-4 w-20 rounded bg-muted animate-pulse"></div>
+
+                <div class="flex items-center gap-2">
+                    <div class="h-7 w-20 rounded-md border bg-card animate-pulse"></div>
+                    <div class="h-7 w-36 rounded-md border bg-card animate-pulse"></div>
+                </div>
+            </div>
+
+            <div class="max-h-72 overflow-y-auto space-y-2 pr-1">
+                <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="h-9 w-9 rounded-sm border bg-muted animate-pulse"></div>
+                        <div class="space-y-2">
+                            <div class="h-4 w-24 rounded bg-muted animate-pulse"></div>
+                            <div class="h-3 w-20 rounded bg-muted animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="h-7 w-16 rounded-md bg-muted animate-pulse"></div>
+                </div>
+
+                <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="h-9 w-9 rounded-sm border bg-muted animate-pulse"></div>
+                        <div class="space-y-2">
+                            <div class="h-4 w-28 rounded bg-muted animate-pulse"></div>
+                            <div class="h-3 w-24 rounded bg-muted animate-pulse"></div>
+                        </div>
+                    </div>
+                    <div class="h-7 w-16 rounded-md bg-muted animate-pulse"></div>
+                </div>
+            </div>
+
+            <div class="mt-3 pt-3 border-t flex flex-col sm:flex-row gap-2">
+                <div class="h-9 rounded-md border bg-card sm:flex-1 animate-pulse"></div>
+                <div class="h-9 w-full rounded-md bg-muted sm:w-20 animate-pulse"></div>
+            </div>
+        </section>
+    }
+}
+
 #[component(Whitelist)]
 fn whitelist() -> Html {
-    let whitelist_players = [
-        ("069a79f4-44e9-4726-a5be-fca90e38aaf5", "Notch", "main"),
-        (
-            "853c80ef-3c37-49fd-aa49-938b674adae6",
-            "mrfartshit",
-            "creative",
-        ),
-    ];
+    let selected_world = use_state(|| World::Main);
+    let world_display = use_state(|| World::Main);
+    let last_display = use_state(|| None::<f64>);
 
-    let options = vec![
+    let whitelisted = use_query_with(
+        *selected_world,
+        {
+            let selected_world = selected_world.clone();
+            move || get_whitelisted_players(*selected_world)
+        },
+        QueryOptions {
+            enabled: true,
+            refetch_interval: 60000,
+            stale_time: 60000.0,
+        },
+    );
+
+    use_effect_with((whitelisted.last_fetched, *selected_world), {
+        let world_display = world_display.clone();
+        let last_display = last_display.clone();
+
+        move |(timestamp, selected_world)| {
+            if let Some(timestamp) = *timestamp {
+                if *last_display == Some(timestamp) {
+                    return;
+                }
+
+                world_display.set(*selected_world);
+                last_display.set(Some(timestamp));
+            }
+        }
+    });
+
+    let world_options = vec![
         DropdownItem {
             id: Server::Main,
             content: html! { { "main" } },
@@ -231,14 +306,16 @@ fn whitelist() -> Html {
         },
     ];
 
-    let selected_world = use_state(|| "main");
+    let Some(whitelist) = whitelisted.data.as_ref() else {
+        return html! { <WhitelistSkeleton /> };
+    };
 
     let update_selected = Callback::from({
         let selected_world = selected_world.clone();
 
         move |id: Server| match id {
-            Server::Main => selected_world.set("main"),
-            Server::Creative => selected_world.set("creative"),
+            Server::Main => selected_world.set(World::Main),
+            Server::Creative => selected_world.set(World::Creative),
         }
     });
 
@@ -248,8 +325,11 @@ fn whitelist() -> Html {
                 <h2 class="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{ "Whitelist" }</h2>
 
                 <div class="flex items-center gap-2">
-                    <Dropdown<Server> {options} {update_selected}>
-                        <span class="text-xs rounded-md border bg-card px-2 py-1.5">{ *selected_world }</span>
+                    if whitelisted.fetching {
+                        <Loader class="animate-spin text-muted-foreground" />
+                    }
+                    <Dropdown<Server> options={world_options} {update_selected}>
+                        <span class="text-xs rounded-md border bg-card px-2 py-1.5">{ selected_world.as_ref() }</span>
                     </Dropdown<Server>>
                     <Input
                         field_type="text"
@@ -260,19 +340,19 @@ fn whitelist() -> Html {
             </div>
 
             <div class="max-h-72 overflow-y-auto space-y-2 pr-1">
-                { for whitelist_players.iter().map(|(uuid, username, world)| html! {
-                    <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 min-w-0">
-                            <img src={player_head(uuid)} alt={format!("{} avatar", username)} class="h-9 w-9 rounded-sm border bg-muted object-cover" />
-                            <div class="min-w-0">
-                                <p class="text-sm font-medium truncate">{ *username }</p>
-                                <p class="text-[11px] text-muted-foreground">{ format!("world: {}", world) }</p>
-                            </div>
-                        </div>
+                    { for whitelist.iter().map(|entry| html! {
+                        <div class="rounded-md border bg-card px-3 py-2 flex items-center justify-between gap-3">
+                                <div class="flex items-center gap-3 min-w-0">
+                                    <img src={player_head(&entry.uuid)} alt={format!("{} avatar", &entry.username)} class="h-9 w-9 rounded-sm border bg-muted object-cover" />
+                                    <div class="min-w-0">
+                                        <p class="text-sm font-medium truncate">{ &entry.username }</p>
+                                        <p class="text-[11px] text-muted-foreground">{ format!("world: {}", *world_display) }</p>
+                                    </div>
+                                </div>
 
-                        <Button class="px-2 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90">{ "Remove" }</Button>
-                    </div>
-                }) }
+                            <Button class="px-2 py-1 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90">{ "Remove" }</Button>
+                        </div>
+                    }) }
             </div>
 
             <div class="mt-3 pt-3 border-t flex flex-col sm:flex-row gap-2">
