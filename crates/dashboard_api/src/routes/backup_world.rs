@@ -35,10 +35,14 @@ pub async fn backup_world(
     )
     .await?;
 
-    app_state
-        .storage
-        .report_operation(Operation::Backup)
-        .await?;
+    if request.server_name == World::Creative {
+        app_state.storage.report_operation(Operation::Sync).await?;
+    } else {
+        app_state
+            .storage
+            .report_operation(Operation::Backup)
+            .await?;
+    }
 
     Ok(())
 }

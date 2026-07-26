@@ -155,19 +155,10 @@ where
 
     use_effect_with((options.enabled, dependencies.clone()), {
         let fetch = fetch.clone();
-        // let state = state.clone();
-
         move |_| {
             if !options.enabled {
                 return;
             }
-
-            // let now = Date::now();
-            // let stale = state
-            //     .last_fetched
-            //     .map(|t| now - t > options.stale_time)
-            //     .unwrap_or(true);
-
             fetch.emit(())
         }
     });
