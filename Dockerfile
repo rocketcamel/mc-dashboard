@@ -2,8 +2,14 @@
 FROM rust:1.95 AS ui-builder
 WORKDIR /app
 
+COPY scripts/dependencies.sh /usr/local/bin/dependencies.sh
+
+ARG TARGETARCH
+ARG TRUNK_VERSION=0.21.14
+
 RUN rustup target add wasm32-unknown-unknown
-RUN cargo install trunk --locked
+RUN chmod +x /usr/local/bin/dependencies.sh
+RUN /usr/local/bin/dependencies.sh "$TRUNK_VERSION" "$TARGETARCH"
 
 COPY Cargo.toml Cargo.lock ./
 COPY crates ./crates
