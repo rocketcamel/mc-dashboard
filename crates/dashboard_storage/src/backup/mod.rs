@@ -40,13 +40,7 @@ impl Storage {
             .send()
             .await?;
 
-        let Some(reports) = result.items else {
-            return Err(StorageError::nil_operation_logs());
-        };
-
-        if reports.is_empty() {
-            return Err(StorageError::nil_operation_logs());
-        }
+        let reports = result.items.unwrap_or(Vec::new());
 
         let items = reports
             .into_iter()
